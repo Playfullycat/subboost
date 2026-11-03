@@ -111,6 +111,18 @@ describe("local session helpers", () => {
     await expect(readSession()).resolves.toBeNull();
   });
 
+  it("exposes the issue time so password changes can invalidate older sessions", async () => {
+    mocks.cookieValue = "header.payload.signature";
+    mocks.jwtVerify.mockResolvedValueOnce({
+      payload: { exp: 4102444800, iat: 1793800000, iss: "subboost-local", jti: "session-2", sub: "admin-1", username: "ry" },
+    });
+    await expect(readSession()).resolves.toEqual({
+      adminId: "admin-1",
+      username: "ry",
+      issuedAt: new Date(1793800000 * 1000),
+    });
+  });
+
   it("fails closed when revocation state cannot be read", async () => {
     mocks.cookieValue = "header.payload.signature";
     mocks.prisma.revokedSession.findUnique.mockRejectedValueOnce(new Error("db down"));

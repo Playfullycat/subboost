@@ -208,20 +208,24 @@ docker compose logs app | grep setup-token
 docker compose exec -T app cat /run/subboost/secrets/LOCAL_SETUP_TOKEN
 ```
 
-### 修改密码 / 忘记密码
+### 修改密码
 
-目前后台没有修改密码的页面，可以在服务器上直接重置（新密码至少 10 位）：
+登录后在「账户设置 → 修改密码」中输入当前密码和新密码（至少 10 位）即可。修改成功后，**其他设备上的登录会全部失效**，当前设备保持登录。为防止暴力猜测，15 分钟内最多尝试 5 次。
+
+### 忘记密码
+
+忘记密码时无法登录，可以在服务器上直接重置（新密码至少 10 位，首尾空格会被忽略）：
 
 ```bash
 read -rsp "新密码: " NEW_PASSWORD; echo
 HASH=$(docker compose exec -T -e NEW_PASSWORD="$NEW_PASSWORD" app \
-  node -e 'process.stdout.write(require("bcryptjs").hashSync(process.env.NEW_PASSWORD, 12))')
+  node -e 'process.stdout.write(require("bcryptjs").hashSync(process.env.NEW_PASSWORD.trim(), 12))')
 docker compose exec -T db psql -U subboost -d subboost \
-  -c "UPDATE \"LocalAdmin\" SET \"passwordHash\" = '$HASH', \"updatedAt\" = now();"
+  -c "UPDATE \"LocalAdmin\" SET \"passwordHash\" = '$HASH', \"sessionsValidAfter\" = now(), \"updatedAt\" = now();"
 unset NEW_PASSWORD HASH
 ```
 
-输出 `UPDATE 1` 即修改成功，无需重启，用新密码登录即可。已经登录的其他设备不会被强制退出，会在登录状态过期（7 天）后要求重新登录。
+输出 `UPDATE 1` 即修改成功，无需重启，用新密码登录即可；所有设备上的旧登录都会失效。
 
 ### 修改用户名
 

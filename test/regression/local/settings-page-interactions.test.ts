@@ -47,6 +47,10 @@ vi.mock("@local/components/backup-card", () => ({
   BackupCard: () => null,
 }));
 
+vi.mock("@local/components/change-password-card", () => ({
+  ChangePasswordCard: () => null,
+}));
+
 vi.mock("lucide-react", () => ({
   LogOut: () => React.createElement("span", null, "logout"),
   Network: () => React.createElement("span", null, "network"),

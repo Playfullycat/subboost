@@ -14,6 +14,8 @@ model LocalAdmin {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
   lastLoginAt  DateTime?
+  // 修改密码时更新；早于该时间签发的登录会话一律失效
+  sessionsValidAfter DateTime?
   allowUnsafeSubscriptionSources Boolean @default(false)
 
   subscriptions Subscription[]

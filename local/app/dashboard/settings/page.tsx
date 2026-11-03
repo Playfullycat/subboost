@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@subboost/ui/component
 import { SwitchField } from "@subboost/ui/components/ui/switch-field";
 import { useUserStore } from "@subboost/ui/store/user-store";
 import { BackupCard } from "@local/components/backup-card";
+import { ChangePasswordCard } from "@local/components/change-password-card";
 
 export default function SettingsPage() {
   const { user, fetchUser, logout } = useUserStore();
@@ -90,7 +91,7 @@ export default function SettingsPage() {
       <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold mb-1">账户设置</h1>
-          <p className="text-fg-50">本地管理员、订阅源安全、运行端点与备份恢复</p>
+          <p className="text-fg-50">本地管理员、修改密码、订阅源安全、运行端点与备份恢复</p>
         </div>
       </div>
 
@@ -117,6 +118,8 @@ export default function SettingsPage() {
             </Button>
           </CardContent>
         </Card>
+
+        <ChangePasswordCard disabled={!user} />
 
         <Card>
           <CardHeader className="flex flex-row items-center gap-3 space-y-0">

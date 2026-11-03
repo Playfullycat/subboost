@@ -131,6 +131,24 @@ describe("local lib helpers", () => {
     expect(() => requireEnv("JWT_SECRET")).toThrow("JWT_SECRET is required");
   });
 
+  it("rejects sessions issued before the last password change", async () => {
+    const changedAt = new Date("2026-11-04T10:00:00.000Z");
+    const admin = { id: "admin-1", username: "root", sessionsValidAfter: changedAt };
+    const sessionAt = (issuedAt?: Date) => ({ adminId: "admin-1", username: "root", ...(issuedAt ? { issuedAt } : {}) });
+
+    mocks.readSession.mockResolvedValueOnce(sessionAt(new Date("2026-11-04T09:59:59.000Z")));
+    mocks.prisma.localAdmin.findUnique.mockResolvedValueOnce(admin);
+    await expect(getCurrentAdmin()).resolves.toBeNull();
+
+    mocks.readSession.mockResolvedValueOnce(sessionAt());
+    mocks.prisma.localAdmin.findUnique.mockResolvedValueOnce(admin);
+    await expect(getCurrentAdmin()).resolves.toBeNull();
+
+    mocks.readSession.mockResolvedValueOnce(sessionAt(changedAt));
+    mocks.prisma.localAdmin.findUnique.mockResolvedValueOnce(admin);
+    await expect(getCurrentAdmin()).resolves.toEqual({ id: "admin-1", username: "root" });
+  });
+
   it("loads current admin and setup state from the local session", async () => {
     mocks.readSession.mockResolvedValueOnce(null);
     await expect(getCurrentAdmin()).resolves.toBeNull();
@@ -140,8 +158,12 @@ describe("local lib helpers", () => {
     await expect(getCurrentAdmin()).resolves.toEqual({ id: "admin-1", username: "root" });
     expect(mocks.prisma.localAdmin.findUnique).toHaveBeenCalledWith({
       where: { id: "admin-1" },
-      select: { id: true, username: true },
+      select: { id: true, username: true, sessionsValidAfter: true },
     });
+
+    mocks.readSession.mockResolvedValueOnce({ adminId: "missing" });
+    mocks.prisma.localAdmin.findUnique.mockResolvedValueOnce(null);
+    await expect(getCurrentAdmin()).resolves.toBeNull();
 
     mocks.prisma.localAdmin.count.mockResolvedValueOnce(0).mockResolvedValueOnce(1);
     await expect(isSetupRequired()).resolves.toBe(true);

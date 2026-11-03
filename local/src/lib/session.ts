@@ -17,7 +17,12 @@ export type SessionPayload = {
   username: string;
 };
 
-type VerifiedSession = SessionPayload & {
+export type ReadSessionResult = SessionPayload & {
+  /** JWT 签发时间；用于让修改密码前签发的会话失效 */
+  issuedAt?: Date;
+};
+
+type VerifiedSession = ReadSessionResult & {
   expiresAt: Date;
   revocationKey: string;
 };
@@ -59,7 +64,13 @@ async function verifySignedSession(token: string): Promise<VerifiedSession | nul
       token,
       claims: payload,
     });
-    return { adminId, username, expiresAt: identity.expiresAt, revocationKey: identity.key };
+    return {
+      adminId,
+      username,
+      ...(typeof payload.iat === "number" ? { issuedAt: new Date(payload.iat * 1000) } : {}),
+      expiresAt: identity.expiresAt,
+      revocationKey: identity.key,
+    };
   } catch {
     return null;
   }
@@ -69,7 +80,7 @@ async function currentSessionToken(): Promise<string | null> {
   return (await cookies()).get(SESSION_COOKIE)?.value ?? null;
 }
 
-export async function readSession(): Promise<SessionPayload | null> {
+export async function readSession(): Promise<ReadSessionResult | null> {
   const token = await currentSessionToken();
   if (!token) return null;
   const session = await verifySignedSession(token);
@@ -80,7 +91,12 @@ export async function readSession(): Promise<SessionPayload | null> {
       where: { revocationKey: session.revocationKey },
       select: { revocationKey: true },
     });
-    return revoked ? null : { adminId: session.adminId, username: session.username };
+    if (revoked) return null;
+    return {
+      adminId: session.adminId,
+      username: session.username,
+      ...(session.issuedAt ? { issuedAt: session.issuedAt } : {}),
+    };
   } catch (error) {
     throw new SessionRevocationStoreUnavailableError(error);
   }

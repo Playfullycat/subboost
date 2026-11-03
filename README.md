@@ -208,20 +208,24 @@ If the logs are gone, read the token and append it to your address: `<APP_URL>/l
 docker compose exec -T app cat /run/subboost/secrets/LOCAL_SETUP_TOKEN
 ```
 
-### Change or reset the password
+### Change the password
 
-The dashboard has no password page yet; reset it on the server instead (at least 10 characters):
+After signing in, go to **Settings → Change password** (`账户设置 → 修改密码`) and enter the current and new password (at least 10 characters). Once it changes, **every other signed-in device is logged out**, and the current device stays signed in. To slow down guessing, you get 5 attempts every 15 minutes.
+
+### Forgot the password
+
+If you cannot sign in, reset the password on the server (at least 10 characters; leading and trailing spaces are ignored):
 
 ```bash
 read -rsp "New password: " NEW_PASSWORD; echo
 HASH=$(docker compose exec -T -e NEW_PASSWORD="$NEW_PASSWORD" app \
-  node -e 'process.stdout.write(require("bcryptjs").hashSync(process.env.NEW_PASSWORD, 12))')
+  node -e 'process.stdout.write(require("bcryptjs").hashSync(process.env.NEW_PASSWORD.trim(), 12))')
 docker compose exec -T db psql -U subboost -d subboost \
-  -c "UPDATE \"LocalAdmin\" SET \"passwordHash\" = '$HASH', \"updatedAt\" = now();"
+  -c "UPDATE \"LocalAdmin\" SET \"passwordHash\" = '$HASH', \"sessionsValidAfter\" = now(), \"updatedAt\" = now();"
 unset NEW_PASSWORD HASH
 ```
 
-`UPDATE 1` means it worked. No restart is needed; sign in with the new password. Devices that are already signed in are not logged out and will ask you to sign in again when their session expires (7 days).
+`UPDATE 1` means it worked. No restart is needed; sign in with the new password. Existing sign-ins on every device stop working.
 
 ### Change the username
 

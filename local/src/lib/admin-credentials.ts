@@ -6,6 +6,9 @@ export const LOCAL_ADMIN_CREDENTIAL_MESSAGES = {
   usernameRequired: "请输入管理员账号",
   passwordMinLength: `密码至少需要 ${LOCAL_ADMIN_PASSWORD_MIN_LENGTH} 个字符`,
   passwordMismatch: "两次输入的密码不一致，请重新确认",
+  currentPasswordRequired: "请输入当前密码",
+  currentPasswordInvalid: "当前密码不正确",
+  passwordUnchanged: "新密码不能与当前密码相同",
 } as const;
 
 type LocalAdminCredentialInput = {
@@ -22,5 +25,23 @@ export function getLocalAdminSetupCredentialError(input: LocalAdminCredentialInp
   if (!username) return LOCAL_ADMIN_CREDENTIAL_MESSAGES.usernameRequired;
   if (password.length < LOCAL_ADMIN_PASSWORD_MIN_LENGTH) return LOCAL_ADMIN_CREDENTIAL_MESSAGES.passwordMinLength;
   if (password !== passwordConfirm) return LOCAL_ADMIN_CREDENTIAL_MESSAGES.passwordMismatch;
+  return "";
+}
+
+type LocalAdminPasswordChangeInput = {
+  currentPassword: string;
+  newPassword: string;
+  newPasswordConfirm: string;
+};
+
+export function getLocalAdminPasswordChangeError(input: LocalAdminPasswordChangeInput): string {
+  const currentPassword = input.currentPassword.trim();
+  const newPassword = input.newPassword.trim();
+  const newPasswordConfirm = input.newPasswordConfirm.trim();
+
+  if (!currentPassword) return LOCAL_ADMIN_CREDENTIAL_MESSAGES.currentPasswordRequired;
+  if (newPassword.length < LOCAL_ADMIN_PASSWORD_MIN_LENGTH) return LOCAL_ADMIN_CREDENTIAL_MESSAGES.passwordMinLength;
+  if (newPassword !== newPasswordConfirm) return LOCAL_ADMIN_CREDENTIAL_MESSAGES.passwordMismatch;
+  if (newPassword === currentPassword) return LOCAL_ADMIN_CREDENTIAL_MESSAGES.passwordUnchanged;
   return "";
 }
