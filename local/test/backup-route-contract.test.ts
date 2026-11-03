@@ -10,10 +10,12 @@ vi.mock("@local/lib/auth", () => ({
   getCurrentAdmin: vi.fn(),
 }));
 
-vi.mock("@local/lib/backup-service", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@local/lib/backup-service")>();
-  return { ...actual, exportBackup: vi.fn(), importBackup: vi.fn() };
-});
+// 不能 importOriginal：真实模块会加载 Prisma 客户端，CI 在 prisma generate 之前运行测试。
+vi.mock("@local/lib/backup-service", () => ({
+  BackupImportError: class BackupImportError extends Error {},
+  exportBackup: vi.fn(),
+  importBackup: vi.fn(),
+}));
 
 const admin = { id: "admin-1", username: "root" };
 const payload: BackupPayload = {
