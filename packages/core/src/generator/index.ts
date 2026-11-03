@@ -122,6 +122,14 @@ function omitGeneratedSections(baseConfig: Record<string, unknown>): Record<stri
   );
 }
 
+/**
+ * 用户基础配置未指定 geox-url 时补上默认镜像地址：默认 DNS 的 geosite:cn / geosite:private 依赖 GeoSite 数据，
+ * Mihomo 内置的 github.com 下载地址在国内经常失败，会导致 DNS 策略无法加载。
+ */
+function withDefaultGeoxUrl(patch: Record<string, unknown>, defaultGeoxUrl: unknown): Record<string, unknown> {
+  return patch["geox-url"] === undefined ? { ...patch, "geox-url": defaultGeoxUrl } : patch;
+}
+
 function normalizeBaseConfigPatch(baseConfig: Record<string, unknown>): Record<string, unknown> {
   const patch = omitGeneratedSections(baseConfig);
   // 已保存配置里未改动过的旧默认 DNS（国内外混用 + fallback）一次性升级为新默认 DNS。
@@ -376,7 +384,7 @@ export function generateClashConfig(options: GenerateOptions): ClashConfig {
 
   const baseTopLevelPatch = shouldUseDefaultBaseSections
     ? defaultBaseConfigPatch
-    : normalizeBaseConfigPatch(baseConfigRecord);
+    : withDefaultGeoxUrl(normalizeBaseConfigPatch(baseConfigRecord), defaultBaseConfigPatch["geox-url"]);
 
   const proxyGroups = (() => {
     const allGroups = generateProxyGroups(generateOpts);

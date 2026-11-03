@@ -128,6 +128,20 @@ describe("default DNS", () => {
     expect(customized.dns?.fallback).toEqual(LEGACY_DEFAULT_DNS_CONFIG_V1.fallback);
   });
 
+  it("adds the mirrored geox-url that the geosite DNS policy needs, unless the user set one", () => {
+    const legacy = generateClashConfig({ nodes: [node], userConfig: { dnsYaml: LEGACY_DEFAULT_BASE_CONFIG_YAML_V1 } });
+    expect(legacy["geox-url"]).toMatchObject({
+      geosite: "https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geosite.dat",
+      asn: "https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/GeoLite2-ASN.mmdb",
+    });
+
+    const custom = generateClashConfig({
+      nodes: [node],
+      userConfig: { dnsYaml: `${DEFAULT_BASE_CONFIG_YAML}\ngeox-url:\n  geosite: https://mirror.example.com/geosite.dat` },
+    });
+    expect(custom["geox-url"]).toEqual({ geosite: "https://mirror.example.com/geosite.dat" });
+  });
+
   it("migrates untouched legacy editor text and keeps the port lines", () => {
     const legacy = LEGACY_DEFAULT_BASE_CONFIG_YAML_V1.replace(/^mixed-port: .*$/m, "mixed-port: 7899").replace(
       /^allow-lan: .*$/m,
