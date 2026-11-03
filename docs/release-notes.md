@@ -1,21 +1,23 @@
-# SubBoost v2.11.0
+# SubBoost v2.12.0
+
+基于上游 [SubBoost/subboost](https://github.com/SubBoost/subboost) v2.11.0 的分支版本。
 
 ## 中文
 
-- 扩展自定义规则，支持更多 Mihomo 规则类型、AND/OR/NOT 逻辑组合及批量导入格式，改进规则参数和目标的保留。
-- 新增订阅链接重置，可在订阅设置中更换链接并使旧链接失效。
-- 改进规则格式识别、兼容健康检查的共享，以及移动端设置与弹窗布局。
-- 改进部分 VLESS Reality 链接的导入兼容性。
-- 修复大备份校验误报导致自部署升级中止的问题。
+- 部署简化为单个 `docker-compose.yml`：下载后执行 `docker compose up -d` 即可，不再需要安装脚本。
+- 数据库密码、`ENCRYPTION_KEY`、`JWT_SECRET`、`CRON_SECRET` 和首次管理员初始化令牌在第一次启动时自动生成，保存在 `subboost-secrets` 数据卷中；初始化链接可通过 `docker compose logs app` 查看。
+- 定时任务改用 SubBoost 镜像运行，不再额外拉取 curl 镜像；应用新增健康检查。
+- 移除 `install.sh` 和 `subboost` 管理命令；更新改为 `docker compose pull && docker compose up -d`。
 
-升级提示：如果旧版更新时出现 `read=141 pg_restore=0`，请先使用本次发布附带的独立修复脚本更新管理器，再运行 `subboost update`。修复脚本保留备份校验，不修改数据库和应用配置。
+部署提示：`subboost-secrets` 与 `subboost-db` 两个数据卷必须一起保留，丢失 `subboost-secrets` 后已加密的订阅数据无法解密。不要执行 `docker compose down -v`。
 
 ## English
 
-- Expand custom rules with more Mihomo rule types, AND/OR/NOT logical combinations, and batch import formats, with improved preservation of rule parameters and targets.
-- Add subscription link reset in subscription settings, replacing the link and invalidating the previous one.
-- Improve rule format detection, sharing of compatible health checks, and mobile settings and dialog layouts.
-- Improve import compatibility for certain VLESS Reality links.
-- Fix false verification failures on large backups that could abort self-hosted updates.
+A fork based on upstream [SubBoost/subboost](https://github.com/SubBoost/subboost) v2.11.0.
 
-Upgrade note: If an older installation reports `read=141 pg_restore=0` during an update, first use this release's standalone repair script to refresh the manager, then run `subboost update`. The repair script preserves backup verification and does not modify the database or application configuration.
+- Deployment is now a single `docker-compose.yml`: download it and run `docker compose up -d`; no install script is needed.
+- The database password, `ENCRYPTION_KEY`, `JWT_SECRET`, `CRON_SECRET`, and first-run setup token are generated on first start and stored in the `subboost-secrets` volume; find the setup link with `docker compose logs app`.
+- Scheduled jobs now run on the SubBoost image instead of a separate curl image, and the app has a health check.
+- Removed `install.sh` and the `subboost` manager command; update with `docker compose pull && docker compose up -d`.
+
+Deployment note: keep the `subboost-secrets` and `subboost-db` volumes together. Losing `subboost-secrets` makes encrypted subscription data undecryptable. Do not run `docker compose down -v`.
