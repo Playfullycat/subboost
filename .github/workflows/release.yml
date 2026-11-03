@@ -13,9 +13,6 @@ concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
 
-env:
-  IMAGE_NAME: ghcr.io/subboost/subboost
-
 jobs:
   meta:
     runs-on: ubuntu-latest
@@ -46,7 +43,8 @@ jobs:
           echo "release_version=${release_version}" >> "$GITHUB_OUTPUT"
           echo "short_sha=${short_sha}" >> "$GITHUB_OUTPUT"
           echo "build_version=${release_version}+sha.${short_sha}" >> "$GITHUB_OUTPUT"
-          echo "image_name=${IMAGE_NAME}" >> "$GITHUB_OUTPUT"
+          # GHCR image names must be lowercase; publish under the repository owner (works for forks).
+          echo "image_name=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/subboost" >> "$GITHUB_OUTPUT"
 
   checks:
     runs-on: ubuntu-latest
@@ -185,20 +183,19 @@ jobs:
           fi
           echo "digest=${digest}" >> "$GITHUB_OUTPUT"
 
-      - name: Prepare selfhost release assets
+      - name: Prepare release assets
         shell: bash
         env:
           IMAGE_DIGEST: ${{ steps.image_manifest.outputs.digest }}
           IMAGE_NAME: ${{ needs.meta.outputs.image_name }}
         run: |
           set -euo pipefail
-          node scripts/selfhost-release-assets.cjs \
-            --output dist/release-assets \
-            --tag "${GITHUB_REF_NAME}" \
-            --build-sha "${GITHUB_SHA}" \
-            --image "${IMAGE_NAME}@${IMAGE_DIGEST}" \
-            --image-tag "${IMAGE_NAME}:${GITHUB_REF_NAME}" \
-            --base-url "https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}"
+          mkdir -p dist/release-assets
+          # Pin the release compose file to this release's image digest.
+          pinned_image="${IMAGE_NAME}:${GITHUB_REF_NAME}@${IMAGE_DIGEST}"
+          sed "s#^x-subboost-image:.*#x-subboost-image: \&subboost-image \${SUBBOOST_IMAGE:-${pinned_image}}#" \
+            docker-compose.yml > dist/release-assets/docker-compose.yml
+          grep -Fqx "x-subboost-image: &subboost-image \${SUBBOOST_IMAGE:-${pinned_image}}" dist/release-assets/docker-compose.yml
 
       - name: Create draft GitHub Release
         env:
@@ -208,7 +205,4 @@ jobs:
             --title "SubBoost ${GITHUB_REF_NAME}" \
             --notes-file docs/release-notes.md \
             --draft \
-            dist/release-assets/release.json \
-            dist/release-assets/install.sh \
-            dist/release-assets/docker-compose.image.yml \
-            dist/release-assets/subboost-manager
+            dist/release-assets/docker-compose.yml

@@ -4,7 +4,7 @@
   <h1>SubBoost</h1>
   <p>
     <img src="https://img.shields.io/badge/platform-Linux%20%2B%20Docker-lightgrey.svg" alt="平台：Linux + Docker">
-    <img src="https://img.shields.io/badge/version-2.11.0-green.svg" alt="版本 2.11.0">
+    <img src="https://img.shields.io/badge/version-2.12.0-green.svg" alt="版本 2.12.0">
     <a href="https://subboost.org"><img src="https://img.shields.io/badge/app-subboost.org-brightgreen.svg" alt="在线入口"></a>
     <a href="https://docs.subboost.org"><img src="https://img.shields.io/badge/docs-subboost.org-blue.svg" alt="文档"></a>
     <img src="https://img.shields.io/badge/image-GHCR-blue.svg" alt="GHCR 镜像">
@@ -35,9 +35,29 @@
 ## 使用和部署
 
 - 在线入口：[无需部署 - 直接使用的公益服务](https://subboost.org)
-- 部署文档：[一键部署 - 拉取镜像构建，速度快配置要求低](https://docs.subboost.org/deploy/one-click)
-- 部署文档：[高级部署 - 编译源码构建，速度慢配置要求高](https://docs.subboost.org/deploy/advanced)
 - 配置教程：[草履虫也能学会的 Clash 配置：UI 界面一键配置精确分流、链式代理](https://ryanvan.com/t/topic/59?u=ryan)
+
+### Docker Compose 部署
+
+只需要安装好 Docker（含 Compose 插件），不需要任何安装脚本：
+
+```bash
+mkdir subboost && cd subboost
+curl -fsSLO https://github.com/Playfullycat/subboost/releases/latest/download/docker-compose.yml
+docker compose up -d
+docker compose logs app | grep setup-token
+```
+
+打开日志里的 `首次初始化链接` 创建第一个管理员即可。
+
+- **无需配置密钥**：数据库密码、`ENCRYPTION_KEY`、`JWT_SECRET`、`CRON_SECRET` 和 `LOCAL_SETUP_TOKEN` 会在第一次启动时自动生成，保存在 `subboost-secrets` 数据卷里。
+- **访问地址和端口**：默认 `http://localhost:3000`。通过公网 IP 或域名访问时，在 `docker-compose.yml` 中修改 `APP_URL` 和端口映射，或在同目录新建 `.env` 写入 `APP_URL=https://sub.example.com`、`SUBBOOST_PORT=8080`。
+- **更新**：`docker compose pull && docker compose up -d`。
+- **从源码构建**：在仓库根目录执行 `docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build`（建议 2 GB 以上内存）。
+- **从旧版一键脚本迁移**：把旧安装目录 `.env` 中的 `POSTGRES_PASSWORD`、`ENCRYPTION_KEY`、`JWT_SECRET`、`CRON_SECRET`、`LOCAL_SETUP_TOKEN` 复制到新目录的 `.env`，首次启动时会沿用这些值；旧数据库数据需通过备份导入。
+
+> [!WARNING]
+> `subboost-secrets` 与 `subboost-db` 两个数据卷必须一起保留。丢失 `subboost-secrets` 后，已加密的订阅数据将无法解密。不要执行 `docker compose down -v`。
 
 ## 开发说明
 
@@ -78,7 +98,7 @@ npm run check:local-app
 
 SubBoost 公开源码以 [GNU Affero General Public License v3.0 only](./LICENSE) 授权。
 
-如果你修改 SubBoost 并通过网络向用户提供服务，AGPL-3.0 要求你向这些用户提供对应源码。公开源码入口是 [SubBoost/subboost](https://github.com/SubBoost/subboost)。
+如果你修改 SubBoost 并通过网络向用户提供服务，AGPL-3.0 要求你向这些用户提供对应源码。本分支的公开源码入口是 [Playfullycat/subboost](https://github.com/Playfullycat/subboost)，上游项目为 [SubBoost/subboost](https://github.com/SubBoost/subboost)。
 
 ## 免责声明
 
