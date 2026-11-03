@@ -24,7 +24,7 @@ import {
   parseRuleSetTargetValue,
   type CustomRoutingRuleSetItem,
 } from "@subboost/core/rules/custom-routing-rule-sets";
-import { DEFAULT_RULE_PROVIDER_BASE_URL } from "@subboost/core/rules/metadata";
+import { DEFAULT_RULE_PROVIDER_BASE_URL, KNOWN_RULE_PROVIDER_BASE_URLS } from "@subboost/core/rules/metadata";
 import { useProductApiAdapter } from "@subboost/ui/product/api-adapter";
 import { resolveRuleSetUrl, useRuleSetOperation } from "./use-rule-set-resolution";
 import type { RuleSetMetadata } from "@subboost/core/types/config";
@@ -49,10 +49,10 @@ type RuleSetDraft = {
 
 function formatRuleSetPathForDisplay(path: string): string {
   const normalized = normalizeRuleSetPathInput(path);
-  const metaCubeXPrefix = `${DEFAULT_RULE_PROVIDER_BASE_URL.replace(/\/+$/, "")}/`;
-  const displayPath = normalized.toLowerCase().startsWith(metaCubeXPrefix.toLowerCase())
-    ? normalized.slice(metaCubeXPrefix.length)
-    : normalized;
+  const metaCubeXPrefix = KNOWN_RULE_PROVIDER_BASE_URLS.map((baseUrl) => `${baseUrl.replace(/\/+$/, "")}/`).find((prefix) =>
+    normalized.toLowerCase().startsWith(prefix.toLowerCase())
+  );
+  const displayPath = metaCubeXPrefix ? normalized.slice(metaCubeXPrefix.length) : normalized;
   if (/^(?:geosite|geoip)\/[^/?#\s]+\.mrs$/i.test(displayPath)) {
     return displayPath.slice(0, -".mrs".length);
   }

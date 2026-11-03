@@ -34,6 +34,7 @@ export type SubBoostTemplateConfig = {
   customRules: CustomRule[];
   ruleOrder?: string[];
   cnIpNoResolve?: boolean;
+  cnIpRuleVersion?: number;
   experimentalCnUseCnRuleSet?: boolean;
   dialerProxyGroups: DialerProxyGroup[];
   proxyGroupNameOverrides?: Record<string, string>;

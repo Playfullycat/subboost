@@ -13,7 +13,7 @@ export const DEFAULT_SUBBOOST_CONFIG = {
   ruleProviderBaseUrl: DEFAULT_RULE_PROVIDER_BASE_URL,
   customRules: [],
   ruleOrder: [],
-  cnIpNoResolve: true,
+  cnIpNoResolve: false,
   experimentalCnUseCnRuleSet: true,
   dnsYaml: "",
   mixedPort: 7897,
@@ -74,7 +74,7 @@ export function buildDefaultBaseConfigPatch(options: {
       geoip: "https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geoip.dat",
       geosite: "https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geosite.dat",
       mmdb: "https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/country.mmdb",
-      asn: "https://github.com/xishang0128/geoip/releases/download/latest/GeoLite2-ASN.mmdb",
+      asn: "https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/GeoLite2-ASN.mmdb",
     },
   };
 }
@@ -116,6 +116,52 @@ unified-delay: true
 tcp-concurrent: true
 find-process-mode: strict
 
+# DNS 配置：国内域名只问国内 DoH；其余域名按分流规则经代理问海外 DoH，防止 DNS 泄露
+dns:
+  enable: true
+  listen: "127.0.0.1:5335"
+  use-system-hosts: false
+  enhanced-mode: fake-ip
+  fake-ip-range: 198.18.0.1/16
+  respect-rules: true
+  default-nameserver: [223.5.5.5, 119.29.29.29]
+  proxy-server-nameserver: ["https://dns.alidns.com/dns-query", "https://doh.pub/dns-query"]
+  direct-nameserver: ["https://dns.alidns.com/dns-query", "https://doh.pub/dns-query"]
+  nameserver-policy:
+    "geosite:private,cn": ["https://dns.alidns.com/dns-query", "https://doh.pub/dns-query"]
+  nameserver: ["https://dns.cloudflare.com/dns-query", "https://dns.google/dns-query"]
+  fake-ip-filter: ["geosite:private", "*.lan", "stun.*.*.*", "stun.*.*", time.windows.com, time.nist.gov, time.apple.com, time.asia.apple.com, "*.ntp.org.cn", "*.openwrt.pool.ntp.org", time1.cloud.tencent.com, time.ustc.edu.cn, pool.ntp.org, ntp.ubuntu.com, ntp.aliyun.com, ntp1.aliyun.com, ntp2.aliyun.com, ntp3.aliyun.com, ntp4.aliyun.com, ntp5.aliyun.com, ntp6.aliyun.com, ntp7.aliyun.com, time1.aliyun.com, time2.aliyun.com, time3.aliyun.com, time4.aliyun.com, time5.aliyun.com, time6.aliyun.com, time7.aliyun.com, "*.time.edu.cn", time1.apple.com, time2.apple.com, time3.apple.com, time4.apple.com, time5.apple.com, time6.apple.com, time7.apple.com, time1.google.com, time2.google.com, time3.google.com, time4.google.com, music.163.com, "*.music.163.com", "*.126.net", musicapi.taihe.com, music.taihe.com, songsearch.kugou.com, trackercdn.kugou.com, "*.kuwo.cn", api-jooxtt.sanook.com, api.joox.com, joox.com, y.qq.com, "*.y.qq.com", streamoc.music.tc.qq.com, mobileoc.music.tc.qq.com, isure.stream.qqmusic.qq.com, dl.stream.qqmusic.qq.com, aqqmusic.tc.qq.com, amobile.music.tc.qq.com, "*.xiami.com", "*.music.migu.cn", music.migu.cn, "*.msftconnecttest.com", "*.msftncsi.com", localhost.ptlogin2.qq.com, "*.*.*.srv.nintendo.net", "*.*.stun.playstation.net", "xbox.*.*.microsoft.com", "*.ipv6.microsoft.com", "*.*.xboxlive.com", speedtest.cros.wr.pvp.net]
+  # nameserver-policy 可继续追加，例如：
+  #   "rule-set:company": ["172.16.0.53", "172.16.0.54"]
+  #   "+.home.arpa": ["192.168.1.1"]
+
+# 配置文件管理
+profile:
+  store-selected: true
+  store-fake-ip: false
+
+# 域名/流量嗅探
+sniffer:
+  enable: true
+  parse-pure-ip: true
+  sniff:
+    TLS: {ports: [443, 8443]}
+    HTTP: {ports: [80, 8080-8880], override-destination: true}
+    QUIC: {ports: [443, 8443]}`;
+
+/**
+ * 2.12 之前的默认基础配置文本（DNS 国内外混用 + fallback）。
+ * 仅用于把从未改动过的已保存文本迁移为 DEFAULT_BASE_CONFIG_YAML，见 migrateLegacyDefaultBaseConfigYaml。
+ */
+export const LEGACY_DEFAULT_BASE_CONFIG_YAML_V1 = `# 基础配置
+mixed-port: ${DEFAULT_SUBBOOST_CONFIG.mixedPort}
+allow-lan: ${DEFAULT_SUBBOOST_CONFIG.allowLan}
+mode: rule
+log-level: info
+unified-delay: true
+tcp-concurrent: true
+find-process-mode: strict
+
 # DNS 配置
 dns:
   enable: true
@@ -148,3 +194,24 @@ sniffer:
     TLS: {ports: [443, 8443]}
     HTTP: {ports: [80, 8080-8880], override-destination: true}
     QUIC: {ports: [443, 8443]}`;
+
+const BASE_PORT_LINE = /^mixed-port: .*$/m;
+const BASE_ALLOW_LAN_LINE = /^allow-lan: .*$/m;
+
+function stripBasePortLines(yaml: string): string {
+  return yaml.replace(BASE_PORT_LINE, "").replace(BASE_ALLOW_LAN_LINE, "").trim();
+}
+
+/**
+ * 已保存的基础配置文本若与旧默认文本一致（只允许 mixed-port / allow-lan 不同），
+ * 替换为新默认文本并保留这两行；否则原样返回，用户改过的配置不受影响。
+ */
+export function migrateLegacyDefaultBaseConfigYaml(yaml: string): string {
+  if (stripBasePortLines(yaml) !== stripBasePortLines(LEGACY_DEFAULT_BASE_CONFIG_YAML_V1)) return yaml;
+  const port = yaml.match(BASE_PORT_LINE)?.[0];
+  const allowLan = yaml.match(BASE_ALLOW_LAN_LINE)?.[0];
+  let next = DEFAULT_BASE_CONFIG_YAML;
+  if (port) next = next.replace(BASE_PORT_LINE, port);
+  if (allowLan) next = next.replace(BASE_ALLOW_LAN_LINE, allowLan);
+  return next;
+}

@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FileCode, Loader2, Plus, Search, Upload } from "lucide-react";
+import { CN_IP_RULE_VERSION } from "@subboost/core/rules/cn-ip-rule";
 import { Button } from "@subboost/ui/components/ui/button";
 import { Input } from "@subboost/ui/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@subboost/ui/components/ui/tabs";
@@ -316,6 +317,7 @@ function TemplateLibraryInner({ adapter }: Props) {
           sharedHealthChecks,
           ruleProviderBaseUrl,
           cnIpNoResolve,
+          cnIpRuleVersion: CN_IP_RULE_VERSION,
           experimentalCnUseCnRuleSet,
         } satisfies SubBoostTemplateConfig,
         isPublic: allowPublicTemplates ? (uploadAsDefault ? true : uploadIsPublic) : false,

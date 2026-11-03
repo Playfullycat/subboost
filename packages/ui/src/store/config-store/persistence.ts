@@ -1,5 +1,8 @@
 import type { ConfigState } from "./definitions";
 import { safeParseJsonObject } from "@subboost/core/json";
+import { CN_IP_RULE_VERSION, resolvePersistedCnIpNoResolve } from "@subboost/core/rules/cn-ip-rule";
+import { DEFAULT_SUBBOOST_CONFIG, migrateLegacyDefaultBaseConfigYaml } from "@subboost/core/config/defaults";
+import { migrateLegacyRuleProviderBaseUrl } from "@subboost/core/rules/metadata";
 import { normalizeNodeNameFilterConfig } from "@subboost/core/subscription/node-name-filter";
 import { getConfigDraftStorageNameForUser } from "./draft-storage";
 
@@ -83,18 +86,20 @@ export function normalizePersistedConfigState(
       ? { enabledProxyGroups: state.enabledProxyGroups.filter((item): item is string => typeof item === "string") }
       : {}),
     hiddenProxyGroups: normalizeStringArray(state.hiddenProxyGroups),
-    ...(typeof state.dnsYaml === "string" ? { dnsYaml: state.dnsYaml } : {}),
+    ...(typeof state.dnsYaml === "string" ? { dnsYaml: migrateLegacyDefaultBaseConfigYaml(state.dnsYaml) } : {}),
     ...(typeof state.mixedPort === "number" ? { mixedPort: state.mixedPort } : {}),
     ...(typeof state.allowLan === "boolean" ? { allowLan: state.allowLan } : {}),
     ...(typeof state.testUrl === "string" ? { testUrl: state.testUrl } : {}),
     ...(typeof state.testInterval === "number" ? { testInterval: state.testInterval } : {}),
     sharedHealthChecks: state.sharedHealthChecks === true,
-    ...(typeof state.ruleProviderBaseUrl === "string" ? { ruleProviderBaseUrl: state.ruleProviderBaseUrl } : {}),
+    ...(typeof state.ruleProviderBaseUrl === "string"
+      ? { ruleProviderBaseUrl: migrateLegacyRuleProviderBaseUrl(state.ruleProviderBaseUrl) }
+      : {}),
     ...(typeof state.proxyGroupAdvancedModeEnabled === "boolean"
       ? { proxyGroupAdvancedModeEnabled: state.proxyGroupAdvancedModeEnabled }
       : {}),
     nodeNameFilter: normalizeNodeNameFilterConfig(state.nodeNameFilter),
-    cnIpNoResolve: typeof state.cnIpNoResolve === "boolean" ? state.cnIpNoResolve : true,
+    cnIpNoResolve: resolvePersistedCnIpNoResolve(state, DEFAULT_SUBBOOST_CONFIG.cnIpNoResolve),
     experimentalCnUseCnRuleSet:
       typeof state.experimentalCnUseCnRuleSet === "boolean" ? state.experimentalCnUseCnRuleSet : true,
   } as Partial<ConfigState>;
@@ -115,8 +120,9 @@ export function partializeConfigState(state: ConfigState): Partial<ConfigState> 
     proxyGroupAdvancedModeEnabled: state.proxyGroupAdvancedModeEnabled,
     nodeNameFilter: normalizeNodeNameFilterConfig(state.nodeNameFilter),
     cnIpNoResolve: state.cnIpNoResolve,
+    cnIpRuleVersion: CN_IP_RULE_VERSION,
     experimentalCnUseCnRuleSet: state.experimentalCnUseCnRuleSet,
-  };
+  } as Partial<ConfigState>;
 }
 
 function parsePersistedEnvelope(raw: string | null): PersistedEnvelope | null {

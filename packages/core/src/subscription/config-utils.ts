@@ -21,6 +21,7 @@ import { normalizeCustomRuleValue } from "@subboost/core/rules/custom-rule-value
 import { supportsNoResolve } from "@subboost/core/rules/custom-rule-types";
 import { DEFAULT_SUBBOOST_CONFIG } from "@subboost/core/config/defaults";
 import { normalizeRuleModelFromConfig } from "@subboost/core/rules/rule-model";
+import { readPersistedCnIpNoResolve } from "@subboost/core/rules/cn-ip-rule";
 import { normalizeGroupTestUrl, normalizeProxyGroupAdvancedConfig } from "@subboost/core/proxy-group-advanced";
 import { normalizeProxyGroupTargetRef } from "@subboost/core/proxy-group-targets";
 
@@ -293,7 +294,7 @@ export function buildGenerateOptionsFromConfig(
     config.autoSelectStrategy === "load-balance"
       ? (config.autoSelectStrategy as UserConfig["autoSelectStrategy"])
       : undefined;
-  const cnIpNoResolve = typeof config.cnIpNoResolve === "boolean" ? config.cnIpNoResolve : undefined;
+  const cnIpNoResolve = readPersistedCnIpNoResolve(config);
   const experimentalCnUseCnRuleSet =
     typeof config.experimentalCnUseCnRuleSet === "boolean" ? config.experimentalCnUseCnRuleSet : undefined;
   const proxyGroupNameOverrides = normalizeProxyGroupNameOverrides(config.proxyGroupNameOverrides);

@@ -35,7 +35,7 @@ describe("rule target string references", () => {
     });
     expect(entries.map((entry) => entry.text)).toEqual(expect.arrayContaining([
       `RULE-SET,bilibili,${domesticName}`, "RULE-SET,regional-rule,Renamed",
-      "DOMAIN,local.subboost.test,Renamed", "RULE-SET,cn-ip,Renamed,no-resolve",
+      "DOMAIN,local.subboost.test,Renamed", "RULE-SET,cn-ip,Renamed",
     ]));
   });
 

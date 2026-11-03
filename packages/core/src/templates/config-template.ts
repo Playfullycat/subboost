@@ -2,6 +2,7 @@ import { PROXY_GROUP_MODULES } from "@subboost/core/generator/proxy-groups";
 import { normalizePersistedRuleOrder } from "@subboost/core/generator/rules";
 import { ensureCustomRuleId, isCustomRuleType } from "@subboost/core/rules/custom-rule-utils";
 import { normalizeCustomRuleValue } from "@subboost/core/rules/custom-rule-value";
+import { CN_IP_RULE_VERSION, readPersistedCnIpNoResolve } from "@subboost/core/rules/cn-ip-rule";
 import { supportsNoResolve } from "@subboost/core/rules/custom-rule-types";
 import { resolveProxyGroupAdvancedModeEnabled } from "@subboost/core/proxy-group-advanced-mode";
 import { normalizeProxyGroupAdvancedConfig } from "@subboost/core/proxy-group-advanced";
@@ -101,8 +102,9 @@ export function validateSubBoostTemplateConfig(value: unknown): ValidationResult
   if (!sharedHealthChecks.ok) return sharedHealthChecks;
   const ruleProviderBaseUrl = parseHttpUrlString(value.ruleProviderBaseUrl, "ruleProviderBaseUrl");
   if (!ruleProviderBaseUrl.ok) return ruleProviderBaseUrl;
-  const cnIpNoResolve = parseOptionalBoolean(value.cnIpNoResolve, "cnIpNoResolve");
-  if (!cnIpNoResolve.ok) return cnIpNoResolve;
+  const parsedCnIpNoResolve = parseOptionalBoolean(value.cnIpNoResolve, "cnIpNoResolve");
+  if (!parsedCnIpNoResolve.ok) return parsedCnIpNoResolve;
+  const cnIpNoResolve = { ok: true as const, value: readPersistedCnIpNoResolve(value) };
   const experimentalCnUseCnRuleSet = parseOptionalBoolean(
     value.experimentalCnUseCnRuleSet,
     "experimentalCnUseCnRuleSet"
@@ -139,7 +141,9 @@ export function validateSubBoostTemplateConfig(value: unknown): ValidationResult
       builtinRuleEdits: ruleModel.builtinRuleEdits,
       customRules: customRules.value,
       ruleOrder: normalizedRuleOrder,
-      ...(cnIpNoResolve.value !== undefined ? { cnIpNoResolve: cnIpNoResolve.value } : {}),
+      ...(cnIpNoResolve.value !== undefined
+        ? { cnIpNoResolve: cnIpNoResolve.value, cnIpRuleVersion: CN_IP_RULE_VERSION }
+        : {}),
       ...(experimentalCnUseCnRuleSet.value !== undefined
         ? { experimentalCnUseCnRuleSet: experimentalCnUseCnRuleSet.value }
         : {}),

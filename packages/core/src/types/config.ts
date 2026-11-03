@@ -194,9 +194,11 @@ export interface UserConfig {
   enabledRules: string[];
   customRules: CustomRule[];
   ruleOrder?: string[];
-  // 国内服务 GeoIP 规则是否使用 no-resolve（默认 true；关闭可提升命中率但可能造成 DNS 泄露）
+  // 国内服务 GeoIP 规则是否使用 no-resolve（默认 false；cn-ip 已后置到所有域名规则之后，解析不会造成 DNS 泄露）
   cnIpNoResolve?: boolean;
-  // 实验性：为“国内服务”额外启用 cn（geosite/cn.mrs），并将其规则后置（放到 global 之后）
+  // cnIpNoResolve 的语义版本，见 rules/cn-ip-rule.ts
+  cnIpRuleVersion?: number;
+  // 为“国内服务”额外启用 cn 完整域名（geosite/cn.mrs），紧随国内服务的其他域名规则
   experimentalCnUseCnRuleSet?: boolean;
   
   // DNS 设置 (YAML 文本)

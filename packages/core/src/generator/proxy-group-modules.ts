@@ -83,7 +83,16 @@ export const PROXY_GROUP_MODULES: ProxyGroupModule[] = [
     groupType: "direct-first",
     rules: [
       { id: "geolocation-cn", name: "国内域名 (精简)", behavior: "domain", path: "geosite/geolocation-cn.mrs" },
-      { id: "cn-ip", name: "国内IP", behavior: "ipcidr", path: "geoip/cn.mrs", noResolve: true },
+      // 海外服务的国内专属域名（CDN、下载、更新），不在 geolocation-cn / cn 中，
+      // 必须排在对应服务规则之前，否则会被 Apple/微软/Steam 等分组抢先命中走代理。
+      { id: "apple@cn", name: "Apple 国内", behavior: "domain", path: "geosite/apple@cn.mrs" },
+      { id: "microsoft@cn", name: "微软国内", behavior: "domain", path: "geosite/microsoft@cn.mrs" },
+      { id: "google@cn", name: "谷歌国内", behavior: "domain", path: "geosite/google@cn.mrs" },
+      { id: "steam@cn", name: "Steam 国内", behavior: "domain", path: "geosite/steam@cn.mrs" },
+      { id: "category-games@cn", name: "游戏国内", behavior: "domain", path: "geosite/category-games@cn.mrs" },
+      { id: "amazon@cn", name: "亚马逊国内", behavior: "domain", path: "geosite/amazon@cn.mrs" },
+      // 国内 IP 规则由生成器后置到所有域名规则之后，默认解析域名以兜住不在域名列表里的国内服务。
+      { id: "cn-ip", name: "国内IP", behavior: "ipcidr", path: "geoip/cn.mrs" },
     ],
   },
   {

@@ -1,5 +1,6 @@
 export const RULE_PROVIDER_CONFIG = {
-  baseUrl: "https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/meta/geo",
+  // jsDelivr 镜像在国内可直连；github.com 直连在国内经常超时，导致规则集下载失败、分流整体失效。
+  baseUrl: "https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo",
   github: {
     owner: "MetaCubeX",
     repo: "meta-rules-dat",
@@ -31,5 +32,18 @@ export const RULE_PROVIDER_CONFIG = {
 } as const;
 
 export const DEFAULT_RULE_PROVIDER_BASE_URL = RULE_PROVIDER_CONFIG.baseUrl;
+
+/** 2.12 之前的默认规则集地址；已保存配置中的这些值视为"未自定义"，迁移到新默认地址。 */
+const LEGACY_RULE_PROVIDER_BASE_URLS = new Set(["https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/meta/geo"]);
+
+/** 识别 MetaCubeX 规则集完整 URL 时可用的前缀（新默认地址 + 旧默认地址）。 */
+export const KNOWN_RULE_PROVIDER_BASE_URLS = [DEFAULT_RULE_PROVIDER_BASE_URL, ...LEGACY_RULE_PROVIDER_BASE_URLS];
+
+export function migrateLegacyRuleProviderBaseUrl(url: string): string;
+export function migrateLegacyRuleProviderBaseUrl(url: string | undefined): string | undefined;
+export function migrateLegacyRuleProviderBaseUrl(url: string | undefined): string | undefined {
+  if (typeof url !== "string") return url;
+  return LEGACY_RULE_PROVIDER_BASE_URLS.has(url.trim().replace(/\/+$/, "")) ? DEFAULT_RULE_PROVIDER_BASE_URL : url;
+}
 export const RULE_CATEGORIES = RULE_PROVIDER_CONFIG.categories;
 export type RuleCategory = keyof typeof RULE_CATEGORIES;

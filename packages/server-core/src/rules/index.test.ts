@@ -258,7 +258,7 @@ describe("rule catalog service", () => {
 
     const present = await service.searchRules({ keyword: "gemini", page: 1, size: 20 });
     expect(present.items.map((item) => item.url)).toEqual([
-      "https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/meta/geo/geosite/google-gemini.mrs",
+      "https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/google-gemini.mrs",
     ]);
 
     const geoip = await service.searchRules({ keyword: "cn", type: "geoip", page: 1, size: 1 });
@@ -266,7 +266,7 @@ describe("rule catalog service", () => {
       expect.objectContaining({
         behavior: "ipcidr",
         id: "cn-ip",
-        url: "https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/meta/geo/geoip/cn.mrs",
+        url: "https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geoip/cn.mrs",
       }),
     ]);
     expect(geoip.totalMatched).toBe(1);

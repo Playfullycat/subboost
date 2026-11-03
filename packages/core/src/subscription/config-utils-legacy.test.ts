@@ -292,12 +292,13 @@ describe("subscription config utils legacy and mixed persistence", () => {
       mixedPort: 65535,
       allowLan: false,
       autoSelectStrategy: "load-balance",
-      cnIpNoResolve: true,
       experimentalCnUseCnRuleSet: false,
       listenerPorts: { socks: 65535 },
       testUrl: "http://probe.example.com/204",
       testInterval: 0,
     });
+    // 旧版本保存的 cnIpNoResolve: true（无 v2 标记）视为旧默认值，回落到新默认值。
+    expect(options.userConfig).not.toHaveProperty("cnIpNoResolve");
     expect(options.userConfig?.customRules).toEqual([
       {
         id: "custom-rule-dst-port-443-module-auto-1",

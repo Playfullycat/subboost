@@ -1,5 +1,8 @@
 import { getBuiltinTemplateId } from "@subboost/core/templates/builtin";
 import { TEMPLATES } from "@subboost/core/templates";
+import { resolvePersistedCnIpNoResolve } from "@subboost/core/rules/cn-ip-rule";
+import { migrateLegacyDefaultBaseConfigYaml } from "@subboost/core/config/defaults";
+import { migrateLegacyRuleProviderBaseUrl } from "@subboost/core/rules/metadata";
 import { ensureCustomRulesHaveIds } from "@subboost/core/rules/custom-rule-utils";
 import { normalizePersistedRuleOrder } from "@subboost/core/generator/rules";
 import { PROXY_GROUP_MODULES } from "@subboost/core/generator/proxy-groups";
@@ -130,8 +133,7 @@ export function createTemplateActions(
                 typeof config.experimentalCnUseCnRuleSet === "boolean"
                   ? config.experimentalCnUseCnRuleSet
                   : state.experimentalCnUseCnRuleSet,
-              cnIpNoResolve:
-                typeof config.cnIpNoResolve === "boolean" ? config.cnIpNoResolve : state.cnIpNoResolve,
+              cnIpNoResolve: resolvePersistedCnIpNoResolve(config, state.cnIpNoResolve),
               ruleOrder: config.ruleOrder,
             })
           : state.ruleOrder;
@@ -152,8 +154,7 @@ export function createTemplateActions(
           moduleRuleEditWarningAccepted: false,
           customRules: nextCustomRules,
           ruleOrder: nextRuleOrder,
-          cnIpNoResolve:
-            typeof config.cnIpNoResolve === "boolean" ? config.cnIpNoResolve : state.cnIpNoResolve,
+          cnIpNoResolve: resolvePersistedCnIpNoResolve(config, state.cnIpNoResolve),
           experimentalCnUseCnRuleSet:
             typeof config.experimentalCnUseCnRuleSet === "boolean"
               ? config.experimentalCnUseCnRuleSet
@@ -165,7 +166,7 @@ export function createTemplateActions(
             config.proxyGroupNameOverrides && typeof config.proxyGroupNameOverrides === "object"
               ? (config.proxyGroupNameOverrides as Record<string, string>)
               : state.proxyGroupNameOverrides,
-          dnsYaml: typeof config.dnsYaml === "string" ? config.dnsYaml : state.dnsYaml,
+          dnsYaml: typeof config.dnsYaml === "string" ? migrateLegacyDefaultBaseConfigYaml(config.dnsYaml) : state.dnsYaml,
           mixedPort: typeof config.mixedPort === "number" ? config.mixedPort : state.mixedPort,
           allowLan: typeof config.allowLan === "boolean" ? config.allowLan : state.allowLan,
           testUrl: typeof config.testUrl === "string" ? config.testUrl : state.testUrl,
@@ -174,7 +175,7 @@ export function createTemplateActions(
             typeof config.testInterval === "number" ? config.testInterval : state.testInterval,
           ruleProviderBaseUrl:
             typeof config.ruleProviderBaseUrl === "string"
-              ? config.ruleProviderBaseUrl
+              ? migrateLegacyRuleProviderBaseUrl(config.ruleProviderBaseUrl)
               : state.ruleProviderBaseUrl,
         };
       });

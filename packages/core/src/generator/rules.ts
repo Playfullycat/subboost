@@ -50,18 +50,19 @@ export const EXPERIMENTAL_CN_RULE: ProxyGroupRule = {
  * 规则生成顺序（按自上而下、首次命中即停原则）
  *
  * ⚠️ 顺序非常重要！子域名/特定服务必须在通用服务之前：
- * - 私有网络和高置信国内规则在服务父规则前，避免国内子服务被父规则抢先命中
+ * - 私有网络和国内域名规则（含 @cn 专属域名与 cn 完整域名）在服务父规则前，避免国内子服务被父规则抢先命中走代理
  * - Gemini 在 AI/谷歌前（Gemini 用谷歌域名）
  * - 油管视频在谷歌前（YouTube 是谷歌子域名）
  * - 谷歌学术在谷歌前（谷歌学术属于谷歌域名）
- * - cn 完整域名规则是低置信补充，仍通过 special:experimental-cn 后置到 geolocation-!cn 之后
+ * - 国内 IP（cn-ip）后置到所有域名规则之后、MATCH 之前：只有未命中任何域名规则的连接才会解析域名，
+ *   既能兜住不在域名列表里的国内服务，又不会让海外域名提前触发本地 DNS 解析
  */
 const RULE_ORDER: string[] = [
   "ad",
   "private",
+  "cn",
   "gemini",
   "ai",
-  "cn",
   "youtube",
   "google-scholar",
   "education",
@@ -417,10 +418,19 @@ function buildCanonicalRuleEntries(options: Omit<RulesGenerateOptions, "ruleOrde
     pushModuleRuleEntry(streamingWestModule, appleTvPlusRule);
   };
 
+  const pushExperimentalCnEntry = () => {
+    if (!Boolean(experimentalCnUseCnRuleSet) || !enabledSet.has("cn")) return;
+    const target = resolvePolicyTarget(resolveModuleName("cn", proxyGroupNameOverrides));
+    entries.push(
+      buildSpecialRuleEntry("special:experimental-cn", `RULE-SET,${EXPERIMENTAL_CN_RULE.id},${target}`, EXPERIMENTAL_CN_RULE.name, target)
+    );
+  };
+
   const processedModules = new Set<string>();
+  const deferredCnIpRules: ProxyGroupRule[] = [];
 
   for (const moduleId of RULE_ORDER) {
-    if (!insertedEditableEntries && moduleId === "gemini") {
+    if (!insertedEditableEntries && moduleId === "cn") {
       pushEditableEntries();
     }
 
@@ -435,8 +445,14 @@ function buildCanonicalRuleEntries(options: Omit<RulesGenerateOptions, "ruleOrde
     if (!ruleModule) continue;
 
     for (const rule of ruleModule.rules) {
+      if (ruleModule.id === "cn" && rule.behavior === "ipcidr") {
+        deferredCnIpRules.push(rule);
+        continue;
+      }
       pushModuleRuleEntry(ruleModule, rule);
     }
+
+    if (ruleModule.id === "cn") pushExperimentalCnEntry();
   }
 
   for (const ruleModule of PROXY_GROUP_MODULES) {
@@ -451,11 +467,9 @@ function buildCanonicalRuleEntries(options: Omit<RulesGenerateOptions, "ruleOrde
 
   pushEditableEntries();
 
-  if (Boolean(experimentalCnUseCnRuleSet) && enabledSet.has("cn")) {
-    const target = resolvePolicyTarget(resolveModuleName("cn", proxyGroupNameOverrides));
-    entries.push(
-      buildSpecialRuleEntry("special:experimental-cn", `RULE-SET,${EXPERIMENTAL_CN_RULE.id},${target}`, EXPERIMENTAL_CN_RULE.name, target)
-    );
+  const cnModule = PROXY_GROUP_MODULES.find((item) => item.id === "cn");
+  if (cnModule) {
+    for (const rule of deferredCnIpRules) pushModuleRuleEntry(cnModule, rule);
   }
 
   const finalTarget = resolvePolicyTarget(

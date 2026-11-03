@@ -3,6 +3,7 @@
  */
 
 import { loadMihomoYaml } from "../config/yaml-schema";
+import { migrateLegacyRuleProviderBaseUrl } from "@subboost/core/rules/metadata";
 import {
   buildDefaultBaseConfigPatch,
   buildDefaultUserConfig,
@@ -18,7 +19,7 @@ import {
   generateDialerProxyGroups, 
   applyDialerProxy 
 } from "./chain";
-import { DEFAULT_DNS_CONFIG } from "./dns";
+import { DEFAULT_DNS_CONFIG, isLegacyDefaultDnsConfig } from "./dns";
 import { resolveProxyGroupModuleName } from "@subboost/core/proxy-group-name";
 import type { ParsedNode } from "@subboost/core/types/node";
 import type {
@@ -123,6 +124,8 @@ function omitGeneratedSections(baseConfig: Record<string, unknown>): Record<stri
 
 function normalizeBaseConfigPatch(baseConfig: Record<string, unknown>): Record<string, unknown> {
   const patch = omitGeneratedSections(baseConfig);
+  // 已保存配置里未改动过的旧默认 DNS（国内外混用 + fallback）一次性升级为新默认 DNS。
+  if (isLegacyDefaultDnsConfig(patch.dns)) patch.dns = DEFAULT_DNS_CONFIG;
   const dnsPolicyEntries = collectDnsPolicyEntries(patch["nameserver-policy"]);
   if (dnsPolicyEntries.length === 0) return patch;
 
@@ -354,7 +357,7 @@ export function generateClashConfig(options: GenerateOptions): ClashConfig {
     nodes: outputNodes,
     proxyProviderNames,
     enabledModules: config.enabledGroups,
-    ruleProviderBaseUrl: config.ruleProviderBaseUrl,
+    ruleProviderBaseUrl: migrateLegacyRuleProviderBaseUrl(config.ruleProviderBaseUrl),
     testUrl: config.testUrl,
     testInterval: config.testInterval,
     customProxyGroups,

@@ -3,6 +3,7 @@
 import * as React from "react";
 import { toast, ToastAction } from "@subboost/ui/components/ui/toaster";
 import type { ParsedNode } from "@subboost/core/types/node";
+import { CN_IP_RULE_VERSION } from "@subboost/core/rules/cn-ip-rule";
 import {
   getNodeSourceIds,
   type SubscriptionSource,
@@ -403,6 +404,7 @@ export function useSubscriptionLink({
             testInterval,
             sharedHealthChecks,
             cnIpNoResolve,
+            cnIpRuleVersion: CN_IP_RULE_VERSION,
             experimentalCnUseCnRuleSet,
             autoSelectStrategy: "url-test",
           },

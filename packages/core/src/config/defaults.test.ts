@@ -17,7 +17,7 @@ describe("default config builders", () => {
       testUrl: DEFAULT_SUBBOOST_CONFIG.testUrl,
       testInterval: DEFAULT_SUBBOOST_CONFIG.testInterval,
       ruleProviderBaseUrl: DEFAULT_SUBBOOST_CONFIG.ruleProviderBaseUrl,
-      cnIpNoResolve: true,
+      cnIpNoResolve: false,
       experimentalCnUseCnRuleSet: true,
       dnsYaml: "",
       mixedPort: 7897,

@@ -75,6 +75,7 @@ describe("public core config and refresh branch coverage", () => {
         allowLan: false,
         autoSelectStrategy: "url-test",
         cnIpNoResolve: true,
+        cnIpRuleVersion: 2,
         experimentalCnUseCnRuleSet: false,
         ruleProviderBaseUrl: "https://rules.example.com/base/",
       },

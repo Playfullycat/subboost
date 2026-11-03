@@ -1,5 +1,7 @@
 export {
   DEFAULT_RULE_PROVIDER_BASE_URL,
+  KNOWN_RULE_PROVIDER_BASE_URLS,
+  migrateLegacyRuleProviderBaseUrl,
   RULE_CATEGORIES,
   RULE_PROVIDER_CONFIG,
   type RuleCategory,

@@ -3,6 +3,9 @@
 import * as React from "react";
 import type { SubscriptionSource } from "@subboost/ui/store/config-store";
 import type { ParsedNode } from "@subboost/core/types/node";
+import { resolvePersistedCnIpNoResolve } from "@subboost/core/rules/cn-ip-rule";
+import { migrateLegacyDefaultBaseConfigYaml } from "@subboost/core/config/defaults";
+import { migrateLegacyRuleProviderBaseUrl } from "@subboost/core/rules/metadata";
 import type { EditingSubscriptionLoaderOptions } from "./editing-subscription-types";
 import { normalizePersistedRuleOrder } from "@subboost/core/generator/rules";
 import { ensureCustomRulesHaveIds } from "@subboost/core/rules/custom-rule-utils";
@@ -438,10 +441,7 @@ export function useEditingSubscriptionLoader({
             typeof (cfg as any).experimentalCnUseCnRuleSet === "boolean"
               ? Boolean((cfg as any).experimentalCnUseCnRuleSet)
               : initialState.experimentalCnUseCnRuleSet,
-          cnIpNoResolve:
-            typeof (cfg as any).cnIpNoResolve === "boolean"
-              ? Boolean((cfg as any).cnIpNoResolve)
-              : initialState.cnIpNoResolve,
+          cnIpNoResolve: resolvePersistedCnIpNoResolve(cfg, initialState.cnIpNoResolve),
           ruleOrder: Array.isArray((cfg as any).ruleOrder) ? ((cfg as any).ruleOrder as string[]) : [],
         });
         const listenerPortsFromCfg = (() => {
@@ -544,13 +544,15 @@ export function useEditingSubscriptionLoader({
           groupListeners: groupListenersFromCfg,
           appliedTemplateId: appliedTemplateIdFromCfg ?? state.appliedTemplateId,
           nodeNameFilter: nodeNameFilterFromCfg,
-          dnsYaml: typeof cfg.dnsYaml === "string" ? (cfg.dnsYaml as string) : state.dnsYaml,
+          dnsYaml: typeof cfg.dnsYaml === "string" ? migrateLegacyDefaultBaseConfigYaml(cfg.dnsYaml as string) : state.dnsYaml,
           ruleProviderBaseUrl:
-            typeof cfg.ruleProviderBaseUrl === "string" ? (cfg.ruleProviderBaseUrl as string) : state.ruleProviderBaseUrl,
+            typeof cfg.ruleProviderBaseUrl === "string"
+              ? migrateLegacyRuleProviderBaseUrl(cfg.ruleProviderBaseUrl as string)
+              : state.ruleProviderBaseUrl,
           testUrl: typeof cfg.testUrl === "string" ? (cfg.testUrl as string) : state.testUrl,
           testInterval: typeof cfg.testInterval === "number" ? (cfg.testInterval as number) : state.testInterval,
           sharedHealthChecks: cfg.sharedHealthChecks === true,
-          cnIpNoResolve: typeof (cfg as any).cnIpNoResolve === "boolean" ? Boolean((cfg as any).cnIpNoResolve) : state.cnIpNoResolve,
+          cnIpNoResolve: resolvePersistedCnIpNoResolve(cfg, state.cnIpNoResolve),
           experimentalCnUseCnRuleSet:
             typeof (cfg as any).experimentalCnUseCnRuleSet === "boolean"
               ? Boolean((cfg as any).experimentalCnUseCnRuleSet)
