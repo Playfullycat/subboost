@@ -55,6 +55,7 @@ Open the first-run setup link from the log to create the first administrator.
 - **Update**: `docker compose pull && docker compose up -d`.
 - **Build from source**: run `docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build` in the repository root (2 GB+ memory recommended).
 - **Migrating from the old one-click script**: copy `POSTGRES_PASSWORD`, `ENCRYPTION_KEY`, `JWT_SECRET`, `CRON_SECRET`, and `LOCAL_SETUP_TOKEN` from the old installation's `.env` into a `.env` in the new directory; first start reuses them. Old database data must be moved through a backup import.
+- **Backup and restore**: in the dashboard, open Settings → Backup & Restore to export a backup file (optionally password-encrypted) and import it on any instance. Backups include subscriptions (keeping their subscription link tokens), templates, and the source security setting, and do not depend on the instance `ENCRYPTION_KEY`; imports support merge and replace modes.
 
 > [!WARNING]
 > Keep the `subboost-secrets` and `subboost-db` volumes together. Losing `subboost-secrets` makes encrypted subscription data undecryptable. Do not run `docker compose down -v`.

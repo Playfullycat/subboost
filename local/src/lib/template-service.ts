@@ -131,7 +131,8 @@ export async function getTemplateDetail(ownerId: string | null, id: string): Pro
   };
 }
 
-export async function createTemplate(ownerId: string, body: unknown): Promise<LocalTemplateSummary> {
+/** 校验并加密一个新模板的内容（新建与备份导入共用同一套校验）。 */
+export function prepareTemplateRecord(body: unknown) {
   const payload = asRecord(body);
   if (!payload) throw new Error("Invalid request body.");
 
@@ -141,13 +142,16 @@ export async function createTemplate(ownerId: string, body: unknown): Promise<Lo
   const validated = validateSubBoostTemplateConfig(payload.config);
   if (!validated.ok) throw new Error(validated.error);
 
+  return {
+    name,
+    description: asString(payload.description).slice(0, 500),
+    encryptedConfig: encryptJson(validated.config),
+  };
+}
+
+export async function createTemplate(ownerId: string, body: unknown): Promise<LocalTemplateSummary> {
   const row = await prisma.localTemplate.create({
-    data: {
-      ownerId,
-      name,
-      description: asString(payload.description).slice(0, 500),
-      encryptedConfig: encryptJson(validated.config),
-    },
+    data: { ownerId, ...prepareTemplateRecord(body) },
   });
   return formatLocalTemplate(row);
 }

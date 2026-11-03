@@ -55,6 +55,7 @@ docker compose logs app | grep setup-token
 - **更新**：`docker compose pull && docker compose up -d`。
 - **从源码构建**：在仓库根目录执行 `docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build`（建议 2 GB 以上内存）。
 - **从旧版一键脚本迁移**：把旧安装目录 `.env` 中的 `POSTGRES_PASSWORD`、`ENCRYPTION_KEY`、`JWT_SECRET`、`CRON_SECRET`、`LOCAL_SETUP_TOKEN` 复制到新目录的 `.env`，首次启动时会沿用这些值；旧数据库数据需通过备份导入。
+- **备份与恢复**：在后台「账户设置 → 备份与恢复」导出备份文件（可设置密码加密），并在任意实例导入。备份包含订阅（保留订阅链接 token）、模板和订阅源安全设置，不依赖实例的 `ENCRYPTION_KEY`；导入支持合并和覆盖两种模式。
 
 > [!WARNING]
 > `subboost-secrets` 与 `subboost-db` 两个数据卷必须一起保留。丢失 `subboost-secrets` 后，已加密的订阅数据将无法解密。不要执行 `docker compose down -v`。

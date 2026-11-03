@@ -204,7 +204,8 @@ export async function listSubscriptions(ownerId: string): Promise<SubscriptionSu
   return rows.map(formatSubscription);
 }
 
-export async function createSubscription(ownerId: string, body: unknown): Promise<SubscriptionSummary> {
+/** 校验并加密一条新订阅的内容（新建与备份导入共用同一套校验）。 */
+export function prepareSubscriptionRecord(body: unknown) {
   if (!isRecord(body)) {
     throw new Error("Invalid request body.");
   }
@@ -220,16 +221,23 @@ export async function createSubscription(ownerId: string, body: unknown): Promis
   const autoUpdateInterval = normalizeLocalAutoUpdateIntervalSeconds(body.autoUpdateInterval);
   const subscriptionInfo = normalizeSubscriptionInfoForPersistence(body.subscriptionInfo) ?? {};
 
+  return {
+    name,
+    encryptedUrls: encryptJson(urls),
+    encryptedNodes: encryptJson(nodes),
+    encryptedConfig: encryptJson(config),
+    encryptedSubscriptionInfo: encryptJson(subscriptionInfo),
+    autoUpdateInterval,
+  };
+}
+
+export async function createSubscription(ownerId: string, body: unknown): Promise<SubscriptionSummary> {
+  const record = prepareSubscriptionRecord(body);
   const row = await prisma.subscription.create({
     data: {
       ownerId,
-      name,
+      ...record,
       token: generateLocalSubscriptionToken(),
-      encryptedUrls: encryptJson(urls),
-      encryptedNodes: encryptJson(nodes),
-      encryptedConfig: encryptJson(config),
-      encryptedSubscriptionInfo: encryptJson(subscriptionInfo),
-      autoUpdateInterval,
     },
     include: { autoUpdateState: true },
   });

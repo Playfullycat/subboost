@@ -43,6 +43,10 @@ vi.mock("react", async (importOriginal) => {
   };
 });
 
+vi.mock("@local/components/backup-card", () => ({
+  BackupCard: () => null,
+}));
+
 vi.mock("lucide-react", () => ({
   LogOut: () => React.createElement("span", null, "logout"),
   Network: () => React.createElement("span", null, "network"),
