@@ -4,7 +4,7 @@
   <h1>SubBoost</h1>
   <p>
     <img src="https://img.shields.io/badge/platform-Linux%20%2B%20Docker-lightgrey.svg" alt="Platform: Linux + Docker">
-    <img src="https://img.shields.io/badge/version-2.11.0-green.svg" alt="Version 2.11.0">
+    <img src="https://img.shields.io/badge/version-2.12.0-green.svg" alt="Version 2.12.0">
     <a href="https://subboost.org"><img src="https://img.shields.io/badge/app-subboost.org-brightgreen.svg" alt="Online app"></a>
     <a href="https://docs.subboost.org"><img src="https://img.shields.io/badge/docs-subboost.org-blue.svg" alt="Documentation"></a>
     <img src="https://img.shields.io/badge/image-GHCR-blue.svg" alt="GHCR image">
@@ -35,9 +35,29 @@
 ## Usage & Deployment
 
 - Online entry: [No deployment required - direct access to the public service](https://subboost.org)
-- Deployment docs: [One-click deployment - pulls an image to build, faster with lower requirements](https://docs.subboost.org/deploy/one-click)
-- Deployment docs: [Advanced deployment - compiles from source, slower with higher requirements](https://docs.subboost.org/deploy/advanced)
 - Configuration guide: [Clash configuration simple enough for a paramecium: configure precise routing and chained proxies from the UI in one click](https://ryanvan.com/t/topic/59?u=ryan)
+
+### Docker Compose Deployment
+
+All you need is Docker with the Compose plugin; no install script is required:
+
+```bash
+mkdir subboost && cd subboost
+curl -fsSLO https://github.com/Playfullycat/subboost/releases/latest/download/docker-compose.yml
+docker compose up -d
+docker compose logs app | grep setup-token
+```
+
+Open the first-run setup link from the log to create the first administrator.
+
+- **No secrets to configure**: the database password, `ENCRYPTION_KEY`, `JWT_SECRET`, `CRON_SECRET`, and `LOCAL_SETUP_TOKEN` are generated on first start and stored in the `subboost-secrets` volume.
+- **Address and port**: defaults to `http://localhost:3000`. When accessing through a public IP or domain, change `APP_URL` and the port mapping in `docker-compose.yml`, or create a `.env` next to it with `APP_URL=https://sub.example.com` and `SUBBOOST_PORT=8080`.
+- **Update**: `docker compose pull && docker compose up -d`.
+- **Build from source**: run `docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build` in the repository root (2 GB+ memory recommended).
+- **Migrating from the old one-click script**: copy `POSTGRES_PASSWORD`, `ENCRYPTION_KEY`, `JWT_SECRET`, `CRON_SECRET`, and `LOCAL_SETUP_TOKEN` from the old installation's `.env` into a `.env` in the new directory; first start reuses them. Old database data must be moved through a backup import.
+
+> [!WARNING]
+> Keep the `subboost-secrets` and `subboost-db` volumes together. Losing `subboost-secrets` makes encrypted subscription data undecryptable. Do not run `docker compose down -v`.
 
 ## Development Notes
 
@@ -78,7 +98,7 @@ npm run check:local-app
 
 The public SubBoost source code is licensed under the [GNU Affero General Public License v3.0 only](./LICENSE).
 
-If you modify SubBoost and provide it to users over a network, AGPL-3.0 requires you to offer those users the corresponding source code. The public source entry is [SubBoost/subboost](https://github.com/SubBoost/subboost).
+If you modify SubBoost and provide it to users over a network, AGPL-3.0 requires you to offer those users the corresponding source code. The public source for this fork is [Playfullycat/subboost](https://github.com/Playfullycat/subboost); the upstream project is [SubBoost/subboost](https://github.com/SubBoost/subboost).
 
 ## Disclaimer
 

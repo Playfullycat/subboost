@@ -53,6 +53,8 @@ RUN npm prune --omit=dev
 FROM node:24.22.1-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
+# Docker sets HOSTNAME to the container id; listen on all interfaces so the healthcheck can use 127.0.0.1.
+ENV HOSTNAME=0.0.0.0
 ARG APP_RELEASE_VERSION=
 ARG APP_BUILD_SHA=
 ARG APP_VERSION=
@@ -69,8 +71,10 @@ COPY --chown=node:node --from=builder /package/local/.next/static local/.next/st
 COPY --chown=node:node --from=builder /package/local/public local/public
 COPY --chown=node:node --from=builder /package/local/prisma.config.ts local/prisma.config.ts
 COPY --chown=node:node --from=builder /package/local/prisma local/prisma
+COPY --chown=node:node --chmod=0755 local/docker local/docker
 
 WORKDIR /app/local
 USER node
 EXPOSE 3000
+ENTRYPOINT ["/app/local/docker/entrypoint.sh"]
 CMD ["sh", "-c", "../node_modules/.bin/prisma migrate deploy --schema prisma/schema.prisma && node server.js"]

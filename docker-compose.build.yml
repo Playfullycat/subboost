@@ -1,0 +1,23 @@
+# 从源码构建并运行（开发者或需要自行编译时使用）：
+#   docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
+# 构建 Next.js 需要较多内存，建议 2 GB 以上。
+
+services:
+  init:
+    image: subboost:local
+    pull_policy: never
+
+  app:
+    image: subboost:local
+    build:
+      context: .
+      dockerfile: local/Dockerfile
+      args:
+        APP_RELEASE_VERSION: ${APP_RELEASE_VERSION:-}
+        APP_BUILD_SHA: ${APP_BUILD_SHA:-}
+        APP_VERSION: ${APP_VERSION:-}
+        APP_VERSION_TOKEN: ${APP_VERSION_TOKEN:-}
+
+  cron:
+    image: subboost:local
+    pull_policy: never

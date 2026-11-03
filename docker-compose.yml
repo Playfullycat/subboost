@@ -1,0 +1,102 @@
+# SubBoost 部署：把本文件放进一个空目录，执行 `docker compose up -d` 即可。
+# 数据库密码、加密密钥、JWT/定时任务密钥和首次管理员初始化令牌会在第一次启动时自动生成，
+# 保存在 subboost-secrets 数据卷里；初始化链接可通过 `docker compose logs app` 查看。
+#
+# 重要：subboost-secrets 和 subboost-db 两个数据卷必须一起保留。
+# 丢失 subboost-secrets 后，数据库里已加密的订阅数据将无法解密。
+# 不要执行 `docker compose down -v`，它会删除这两个数据卷。
+
+name: subboost
+
+x-subboost-image: &subboost-image ${SUBBOOST_IMAGE:-ghcr.io/playfullycat/subboost:latest}
+
+x-secrets-volume: &secrets-volume
+  type: volume
+  source: subboost-secrets
+  target: /run/subboost/secrets
+  read_only: true
+
+services:
+  init:
+    image: *subboost-image
+    user: "0:0"
+    entrypoint: ["sh", "/app/local/docker/init-secrets.sh"]
+    restart: "no"
+    environment:
+      # 留空即自动生成。从旧版 .env 迁移时，把同名变量放进本目录的 .env 文件即可沿用旧值。
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
+      JWT_SECRET: ${JWT_SECRET:-}
+      CRON_SECRET: ${CRON_SECRET:-}
+      LOCAL_SETUP_TOKEN: ${LOCAL_SETUP_TOKEN:-}
+    volumes:
+      - subboost-secrets:/run/subboost/secrets
+
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    depends_on:
+      init:
+        condition: service_completed_successfully
+    environment:
+      POSTGRES_DB: subboost
+      POSTGRES_USER: subboost
+      POSTGRES_PASSWORD_FILE: /run/subboost/secrets/POSTGRES_PASSWORD
+    volumes:
+      - subboost-db:/var/lib/postgresql/data
+      - *secrets-volume
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U subboost -d subboost"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  app:
+    image: *subboost-image
+    restart: unless-stopped
+    depends_on:
+      init:
+        condition: service_completed_successfully
+      db:
+        condition: service_healthy
+    ports:
+      # 改端口只需改左边的数字，例如 "8080:3000"，同时把下面的 APP_URL 改成对应地址。
+      - "${SUBBOOST_PORT:-3000}:3000"
+    environment:
+      # 浏览器访问 SubBoost 的地址，例如 http://1.2.3.4:3000 或 https://sub.example.com
+      APP_URL: ${APP_URL:-http://localhost:3000}
+      # 只有反向代理会清洗并重写 X-Forwarded-For / X-Real-IP 时才设为 true。
+      TRUST_PROXY_HEADERS: ${TRUST_PROXY_HEADERS:-false}
+      POSTGRES_DB: subboost
+      POSTGRES_USER: subboost
+      # 以下变量留空时从 subboost-secrets 读取，一般不需要设置。
+      DATABASE_URL: ${DATABASE_URL:-}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
+      JWT_SECRET: ${JWT_SECRET:-}
+      CRON_SECRET: ${CRON_SECRET:-}
+      LOCAL_SETUP_TOKEN: ${LOCAL_SETUP_TOKEN:-}
+    volumes:
+      - *secrets-volume
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health/live').then((r)=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+
+  cron:
+    image: *subboost-image
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_healthy
+    command: ["node", "docker/cron.mjs"]
+    environment:
+      SUBBOOST_ROLE: cron
+      CRON_SECRET: ${CRON_SECRET:-}
+    volumes:
+      - *secrets-volume
+
+volumes:
+  subboost-db:
+  subboost-secrets:
