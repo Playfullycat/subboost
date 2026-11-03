@@ -4,7 +4,7 @@
   <h1>SubBoost</h1>
   <p>
     <img src="https://img.shields.io/badge/platform-Linux%20%2B%20Docker-lightgrey.svg" alt="平台：Linux + Docker">
-    <img src="https://img.shields.io/badge/version-2.13.0-green.svg" alt="版本 2.13.0">
+    <img src="https://img.shields.io/badge/version-2.14.0-green.svg" alt="版本 2.14.0">
     <a href="https://github.com/Playfullycat/subboost/pkgs/container/subboost"><img src="https://img.shields.io/badge/image-GHCR-blue.svg" alt="GHCR 镜像"></a>
     <a href="./LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-orange.svg" alt="AGPL-3.0"></a>
   </p>
@@ -123,7 +123,7 @@ docker compose logs app | grep setup-token
 | `APP_URL` | `http://localhost:3000` | 浏览器和客户端访问 SubBoost 的地址，用于生成订阅链接。使用 `https://` 时登录 Cookie 只会通过 HTTPS 发送。 |
 | `SUBBOOST_PORT` | `3000` | 服务器上对外暴露的端口。修改后记得同步修改 `APP_URL`。 |
 | `TRUST_PROXY_HEADERS` | `false` | 只有放在会清洗并重写 `X-Forwarded-For` / `X-Real-IP` 的反向代理之后时才设为 `true`，用于按真实客户端 IP 限制登录频率。直接暴露端口时保持 `false`。 |
-| `SUBBOOST_IMAGE` | 发布版本对应的镜像 | 指定镜像，例如锁定版本 `ghcr.io/playfullycat/subboost:v2.13.0`。 |
+| `SUBBOOST_IMAGE` | 发布版本对应的镜像 | 指定镜像，例如锁定版本 `ghcr.io/playfullycat/subboost:v2.14.0`。 |
 
 示例：
 

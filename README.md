@@ -4,7 +4,7 @@
   <h1>SubBoost</h1>
   <p>
     <img src="https://img.shields.io/badge/platform-Linux%20%2B%20Docker-lightgrey.svg" alt="Platform: Linux + Docker">
-    <img src="https://img.shields.io/badge/version-2.13.0-green.svg" alt="Version 2.13.0">
+    <img src="https://img.shields.io/badge/version-2.14.0-green.svg" alt="Version 2.14.0">
     <a href="https://github.com/Playfullycat/subboost/pkgs/container/subboost"><img src="https://img.shields.io/badge/image-GHCR-blue.svg" alt="GHCR image"></a>
     <a href="./LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-orange.svg" alt="AGPL-3.0"></a>
   </p>
@@ -123,7 +123,7 @@ Put settings in a `.env` file next to `docker-compose.yml` and run `docker compo
 | `APP_URL` | `http://localhost:3000` | The address browsers and clients use to reach SubBoost; used to build subscription links. With `https://`, the login cookie is only sent over HTTPS. |
 | `SUBBOOST_PORT` | `3000` | The port published on the server. Update `APP_URL` when you change it. |
 | `TRUST_PROXY_HEADERS` | `false` | Set to `true` only behind a reverse proxy that sanitizes and rewrites `X-Forwarded-For` / `X-Real-IP`, so login rate limits use the real client IP. Keep `false` when the port is exposed directly. |
-| `SUBBOOST_IMAGE` | The release's image | Override the image, for example to pin `ghcr.io/playfullycat/subboost:v2.13.0`. |
+| `SUBBOOST_IMAGE` | The release's image | Override the image, for example to pin `ghcr.io/playfullycat/subboost:v2.14.0`. |
 
 Example:
 
