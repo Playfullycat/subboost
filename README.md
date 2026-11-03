@@ -5,64 +5,339 @@
   <p>
     <img src="https://img.shields.io/badge/platform-Linux%20%2B%20Docker-lightgrey.svg" alt="Platform: Linux + Docker">
     <img src="https://img.shields.io/badge/version-2.13.0-green.svg" alt="Version 2.13.0">
-    <a href="https://subboost.org"><img src="https://img.shields.io/badge/app-subboost.org-brightgreen.svg" alt="Online app"></a>
-    <a href="https://docs.subboost.org"><img src="https://img.shields.io/badge/docs-subboost.org-blue.svg" alt="Documentation"></a>
-    <img src="https://img.shields.io/badge/image-GHCR-blue.svg" alt="GHCR image">
+    <a href="https://github.com/Playfullycat/subboost/pkgs/container/subboost"><img src="https://img.shields.io/badge/image-GHCR-blue.svg" alt="GHCR image"></a>
+    <a href="./LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-orange.svg" alt="AGPL-3.0"></a>
   </p>
   <p><strong><a href="README.md">English</a> | <a href="README-CN.md">中文</a></strong></p>
 </div>
 <!-- markdownlint-enable MD033 MD041 -->
 
-**SubBoost** is a **Clash/Mihomo subscription conversion, enhancement, and management** tool. It can convert airport subscriptions and self-hosted nodes into optimized aggregate subscriptions, then update them automatically. With the visual UI, you can configure advanced features such as **chained proxies, precise routing, DNS leak prevention, and multi-subscription aggregation** in one click.
+**SubBoost** is a **Clash / Mihomo subscription conversion, enhancement, and management** tool. It turns airport subscriptions and self-hosted nodes into optimized aggregated subscriptions that refresh automatically, and lets you configure **chained proxies, precise routing, DNS leak protection, and multi-subscription aggregation** from a visual UI.
 
-## Highlights & Use Cases
+This repository is a fork of [SubBoost/subboost](https://github.com/SubBoost/subboost). On top of upstream it mainly adds:
 
-- **Subscription conversion**: Import subscription links, YAML files, node links, and other common formats.
-- **Node management**: Rename, delete, or configure listening ports for nodes in batches.
-- **Node filtering**: Build `filtered proxy groups` with only selected nodes by source, region, and custom rules.
-- **Chained proxies**: Configure chained proxies and `relay proxy groups` visually in one click.
-- **Precise routing**: Enable more than 30 common proxy groups and over 2,000 remote rule sets.
-- **Rule management**: Reorder rules for deeper customization by advanced users.
-- **DNS leak prevention**: The default `basic and DNS configuration` helps prevent DNS leaks.
-- **Automatic refresh**: Refresh subscriptions on a schedule and intelligently match nodes during refresh.
+- **Single-file deployment**: one `docker-compose.yml`; every secret is generated on first start, with no install script and nothing to fill in by hand.
+- **Better routing inside mainland China**: China domain rules come first, the China IP rule comes last and resolves domains, the default DNS splits China and overseas lookups, and rule sets and Geo data download from a mirror reachable in China. This fixes China services being slow or unreachable while the proxy is on.
+- **Backup and restore**: export and import all subscriptions, templates, and settings from the dashboard, optionally encrypted and portable between instances; existing subscription links keep working after an import.
 
-## Interface Preview
+## Contents
+
+- [Features](#features)
+- [Screenshot](#screenshot)
+- [Quick Start](#quick-start)
+- [Configuration](#configuration)
+- [Admin Account](#admin-account)
+- [Using Subscriptions](#using-subscriptions)
+- [Routing Inside Mainland China](#routing-inside-mainland-china)
+- [Backup and Restore](#backup-and-restore)
+- [Update, Rollback, and Uninstall](#update-rollback-and-uninstall)
+- [FAQ](#faq)
+- [Development](#development)
+- [License](#license)
+
+## Features
+
+- **Subscription conversion**: import subscription links, YAML files, and node links.
+- **Node management**: bulk rename or delete nodes, or configure listener ports.
+- **Node filtering**: filter nodes by import source, region, and custom rules in advanced routing group mode.
+- **Chained proxies**: configure chained proxies and `relay proxy groups` visually.
+- **Precise routing**: 30+ common proxy groups and 2000+ remote rule sets ready to enable.
+- **Rule management**: reorder rules for advanced customization.
+- **DNS leak protection**: the default `Base and DNS config` keeps China and overseas DNS strictly apart and resolves overseas domains through the proxy.
+- **Automatic refresh**: refresh subscriptions on a schedule with smart node matching.
+- **Backup and restore**: export and import subscriptions, templates, and settings, with optional password encryption.
+
+## Screenshot
 
 <p align="center">
-  <img src="docs/assets/screenshot-main.png" alt="SubBoost visual configuration interface" width="960">
+  <img src="docs/assets/screenshot-main.png" alt="SubBoost visual configuration UI" width="960">
 </p>
 
-## Usage & Deployment
+## Quick Start
 
-- Online entry: [No deployment required - direct access to the public service](https://subboost.org)
-- Configuration guide: [Clash configuration simple enough for a paramecium: configure precise routing and chained proxies from the UI in one click](https://ryanvan.com/t/topic/59?u=ryan)
+### Requirements
 
-### Docker Compose Deployment
+- A Linux server (x86_64 or arm64), 1 GB+ memory recommended.
+- [Docker](https://docs.docker.com/engine/install/) with Docker Compose v2 (`docker compose version` should work).
+- A free port, `3000` by default.
 
-All you need is Docker with the Compose plugin; no install script is required:
+### 1. Download the Compose file
 
 ```bash
-mkdir subboost && cd subboost
+mkdir -p ~/subboost && cd ~/subboost
 curl -fsSLO https://github.com/Playfullycat/subboost/releases/latest/download/docker-compose.yml
+```
+
+> The `docker-compose.yml` attached to a release is pinned to that release's image. You can also use the repository's [docker-compose.yml](./docker-compose.yml), which uses the `latest` image.
+
+### 2. Set the access URL (recommended)
+
+Create a `.env` file in the same directory with the address you open SubBoost at:
+
+```bash
+cat > .env <<'EOF'
+APP_URL=http://YOUR_SERVER_IP:3000
+EOF
+```
+
+`APP_URL` is used to build subscription links, so clients must be able to reach it. Skip this step if you only use SubBoost on the same machine (defaults to `http://localhost:3000`). See [Configuration](#configuration) for more options.
+
+### 3. Start
+
+```bash
 docker compose up -d
+```
+
+On first start:
+
+1. The `init` container generates the database password, `ENCRYPTION_KEY`, `JWT_SECRET`, `CRON_SECRET`, and the first-run setup token, stores them in the `subboost-secrets` volume, and exits (`Exited (0)` is expected).
+2. `db` (PostgreSQL) initializes the database.
+3. `app` applies database migrations and starts the web server.
+4. `cron` checks subscriptions due for automatic refresh every 6 minutes and refreshes the rule catalog every hour.
+
+Run `docker compose ps`; once `app` shows `healthy`, it is ready.
+
+### 4. Create the admin
+
+```bash
 docker compose logs app | grep setup-token
 ```
 
-Open the first-run setup link from the log to create the first administrator.
-
-- **No secrets to configure**: the database password, `ENCRYPTION_KEY`, `JWT_SECRET`, `CRON_SECRET`, and `LOCAL_SETUP_TOKEN` are generated on first start and stored in the `subboost-secrets` volume.
-- **Address and port**: defaults to `http://localhost:3000`. When accessing through a public IP or domain, change `APP_URL` and the port mapping in `docker-compose.yml`, or create a `.env` next to it with `APP_URL=https://sub.example.com` and `SUBBOOST_PORT=8080`.
-- **Update**: `docker compose pull && docker compose up -d`.
-- **Build from source**: run `docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build` in the repository root (2 GB+ memory recommended).
-- **Migrating from the old one-click script**: copy `POSTGRES_PASSWORD`, `ENCRYPTION_KEY`, `JWT_SECRET`, `CRON_SECRET`, and `LOCAL_SETUP_TOKEN` from the old installation's `.env` into a `.env` in the new directory; first start reuses them. Old database data must be moved through a backup import.
-- **Backup and restore**: in the dashboard, open Settings → Backup & Restore to export a backup file (optionally password-encrypted) and import it on any instance. Backups include subscriptions (keeping their subscription link tokens), templates, and the source security setting, and do not depend on the instance `ENCRYPTION_KEY`; imports support merge and replace modes.
+Open the **first-run setup link** from the output (like `http://your-address/login#setup-token=...`) and choose an admin username and password (at least 10 characters). You are signed in right away, and the setup link stops working.
 
 > [!WARNING]
-> Keep the `subboost-secrets` and `subboost-db` volumes together. Losing `subboost-secrets` makes encrypted subscription data undecryptable. Do not run `docker compose down -v`.
+> Until the admin exists, anyone with the setup link can create it. Finish this step right after deploying and do not share the link.
 
-## Development Notes
+### 5. Start using it
 
-Developers can start a local development environment from source:
+After signing in, import airport subscriptions or nodes, pick routing rules, save the subscription, and add the generated link to your client. See [Using Subscriptions](#using-subscriptions).
+
+## Configuration
+
+### Optional settings
+
+Put settings in a `.env` file next to `docker-compose.yml` and run `docker compose up -d` to apply them.
+
+| Variable | Default | Description |
+|---|---|---|
+| `APP_URL` | `http://localhost:3000` | The address browsers and clients use to reach SubBoost; used to build subscription links. With `https://`, the login cookie is only sent over HTTPS. |
+| `SUBBOOST_PORT` | `3000` | The port published on the server. Update `APP_URL` when you change it. |
+| `TRUST_PROXY_HEADERS` | `false` | Set to `true` only behind a reverse proxy that sanitizes and rewrites `X-Forwarded-For` / `X-Real-IP`, so login rate limits use the real client IP. Keep `false` when the port is exposed directly. |
+| `SUBBOOST_IMAGE` | The release's image | Override the image, for example to pin `ghcr.io/playfullycat/subboost:v2.13.0`. |
+
+Example:
+
+```bash
+APP_URL=https://sub.example.com
+SUBBOOST_PORT=8080
+TRUST_PROXY_HEADERS=true
+```
+
+### Generated secrets
+
+| Name | Purpose |
+|---|---|
+| `POSTGRES_PASSWORD` | Database password |
+| `ENCRYPTION_KEY` | Encrypts subscription links, nodes, and configs in the database |
+| `JWT_SECRET` | Signs login sessions |
+| `CRON_SECRET` | Lets scheduled jobs call internal endpoints |
+| `LOCAL_SETUP_TOKEN` | First-run admin setup token |
+
+They live in the `subboost-secrets` volume and are reused on every start, so you normally never touch them. To read one:
+
+```bash
+docker compose exec app cat /run/subboost/secrets/LOCAL_SETUP_TOKEN
+```
+
+A variable with the same name in `.env` takes precedence (mainly for migrating from the old installer).
+
+> [!WARNING]
+> Keep the `subboost-secrets` and `subboost-db` volumes together. Losing `subboost-secrets` makes the encrypted subscription data in the database **undecryptable**. Do not run `docker compose down -v`; use [Backup and Restore](#backup-and-restore) to move servers.
+
+### Reverse proxy and HTTPS
+
+Serving SubBoost over HTTPS through a reverse proxy is recommended. With [Caddy](https://caddyserver.com/) (automatic certificates):
+
+```caddyfile
+sub.example.com {
+    reverse_proxy 127.0.0.1:3000
+}
+```
+
+With Nginx:
+
+```nginx
+server {
+    listen 443 ssl;
+    server_name sub.example.com;
+    # ssl_certificate / ssl_certificate_key ...
+
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+Then set `APP_URL=https://sub.example.com` and `TRUST_PROXY_HEADERS=true` in `.env`. To allow access only through the proxy, change the port mapping in `docker-compose.yml` to `"127.0.0.1:3000:3000"` so the port is not exposed publicly.
+
+### Build from source
+
+To run your own code changes, run this in the repository root (building needs 2 GB+ memory):
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
+```
+
+## Admin Account
+
+SubBoost has a single admin account, created through the setup link on first visit (see [Create the admin](#4-create-the-admin)). Run the commands below in the directory that contains `docker-compose.yml`.
+
+### Lost the setup link
+
+```bash
+docker compose logs app | grep setup-token
+```
+
+If the logs are gone, read the token and append it to your address: `<APP_URL>/login#setup-token=<token>`.
+
+```bash
+docker compose exec -T app cat /run/subboost/secrets/LOCAL_SETUP_TOKEN
+```
+
+### Change or reset the password
+
+The dashboard has no password page yet; reset it on the server instead (at least 10 characters):
+
+```bash
+read -rsp "New password: " NEW_PASSWORD; echo
+HASH=$(docker compose exec -T -e NEW_PASSWORD="$NEW_PASSWORD" app \
+  node -e 'process.stdout.write(require("bcryptjs").hashSync(process.env.NEW_PASSWORD, 12))')
+docker compose exec -T db psql -U subboost -d subboost \
+  -c "UPDATE \"LocalAdmin\" SET \"passwordHash\" = '$HASH', \"updatedAt\" = now();"
+unset NEW_PASSWORD HASH
+```
+
+`UPDATE 1` means it worked. No restart is needed; sign in with the new password. Devices that are already signed in are not logged out and will ask you to sign in again when their session expires (7 days).
+
+### Change the username
+
+```bash
+docker compose exec -T db psql -U subboost -d subboost \
+  -c "UPDATE \"LocalAdmin\" SET \"username\" = 'new-username', \"updatedAt\" = now();"
+```
+
+> [!CAUTION]
+> Do not delete the admin row in the `LocalAdmin` table to "start over": deleting the admin **also deletes every subscription and template**. Use the reset above if you forgot the password.
+
+### Locked out of sign-in
+
+To slow down brute-force attempts, sign-in allows 30 attempts per IP and 8 per username every 15 minutes. Wait 15 minutes, or run `docker compose restart app` to clear the lock immediately.
+
+## Using Subscriptions
+
+1. After signing in, import airport subscription links, YAML files, or node links on the home page.
+2. Choose routing rules and proxy groups, and configure chained proxies, node filters, and other advanced options as needed.
+3. Save the subscription, then copy its link from **My Subscriptions** (`我的订阅`). It looks like `https://sub.example.com/api/subscriptions/<token>/config.yaml`.
+4. Add the link to your client. Clients built on **Mihomo 1.19 or newer** are recommended, such as [Clash Verge Rev](https://github.com/clash-verge-rev/clash-verge-rev), [Mihomo Party](https://github.com/mihomo-party-org/mihomo-party), or [FlClash](https://github.com/chen08209/FlClash).
+
+Notes:
+
+- The token in the subscription link works like a password. If it leaks, use **Reset link** in My Subscriptions; the old link stops working immediately.
+- With automatic refresh enabled, `cron` re-fetches airport subscriptions at the chosen interval; enable subscription auto-update in your client too to receive new nodes.
+- Local and LAN addresses are not allowed as subscription sources by default; enable them under **Settings → Source security** (`账户设置 → 订阅源安全`) only if you trust them.
+
+## Routing Inside Mainland China
+
+The defaults are tuned for use in mainland China:
+
+- **Rule order**: ads → private networks → custom rules → China domains (the reduced and full `cn` lists plus China-only Apple / Microsoft / Google / Steam / games / Amazon lists) → AI and foreign services → non-China domains → China IP → final. China CDNs, App Store, Windows Update, Steam China downloads, and similar traffic no longer get caught by foreign service rules first.
+- **China IP rule**: placed after every domain rule and resolves domains by default, catching China services missing from the domain lists. Only connections that matched no domain rule are resolved, so it does not leak DNS.
+- **DNS**: China and private domains only use AliDNS / DNSPod DoH; everything else uses Cloudflare / Google DoH through the proxy with `respect-rules`; direct traffic and proxy server domains use China DoH.
+- **Download mirror**: rule sets and the GeoIP / GeoSite / ASN databases download from the jsDelivr mirror, which is reachable in China.
+
+DNS settings and rule set URLs you customized in `Base and DNS config` are never overwritten. When upgrading from before 2.13.0, **untouched** legacy defaults upgrade automatically when the subscription is generated; clients only need to refresh once.
+
+## Backup and Restore
+
+### Dashboard backup (recommended)
+
+Go to **Settings → Backup & Restore** (`账户设置 → 备份与恢复`):
+
+- **Export** includes every subscription (with airport links and subscription tokens), templates, and the source security setting. Optionally set a backup password of at least 8 characters to encrypt the whole file (scrypt + AES-256-GCM); the same password is required to import it. Without a password the file is plain JSON, so keep it safe.
+- **Import**: choose a backup file, click **Check backup** (`检查备份`) to preview, then confirm:
+  - **Merge**: subscriptions with the same token are updated from the backup and the rest are added; templates with the same name are skipped; the source security setting is left alone.
+  - **Replace**: existing subscriptions and templates are cleared first, so the result matches the backup exactly.
+- Every record is validated first; if any record is invalid, nothing is written.
+
+Backups do not depend on the instance `ENCRYPTION_KEY`, so they import into any SubBoost instance, and existing subscription links keep working without client changes. Backups **do not include the admin account**: when moving to a new server, create the admin there first, then import.
+
+### Full server backup
+
+To back up everything at the server level (including the admin account), back up the database and the secrets volume together:
+
+```bash
+docker compose exec -T db pg_dump -U subboost -Fc subboost > subboost-db.dump
+docker run --rm -v subboost_subboost-secrets:/secrets:ro -v "$PWD":/backup alpine \
+  tar czf /backup/subboost-secrets.tgz -C /secrets .
+```
+
+To restore on a new server, put `docker-compose.yml` and both backup files in one directory **before SubBoost has ever started there**:
+
+```bash
+docker volume create subboost_subboost-secrets
+docker run --rm -v subboost_subboost-secrets:/secrets -v "$PWD":/backup alpine \
+  tar xzpf /backup/subboost-secrets.tgz -C /secrets
+docker compose up -d db
+docker compose exec -T db sh -c 'until pg_isready -U subboost -d subboost; do sleep 1; done'
+docker compose exec -T db pg_restore -U subboost -d subboost --clean --if-exists --no-owner < subboost-db.dump
+docker compose up -d
+```
+
+> The `subboost_` prefix in volume names comes from `name: subboost` in `docker-compose.yml`. Run `docker volume ls` to see the actual names.
+
+## Update, Rollback, and Uninstall
+
+**Update to the latest version**:
+
+```bash
+docker compose pull
+docker compose up -d
+```
+
+If you use a release's pinned `docker-compose.yml`, download the new release's file, or set `SUBBOOST_IMAGE=ghcr.io/playfullycat/subboost:latest` in `.env`.
+
+**Roll back to a version**: set `SUBBOOST_IMAGE=ghcr.io/playfullycat/subboost:v2.13.0` (use the version you need) in `.env`, then run `docker compose up -d`. Database migrations only move forward, so back up before rolling back across major versions.
+
+**Migrating from the old one-click installer**: copy `POSTGRES_PASSWORD`, `ENCRYPTION_KEY`, `JWT_SECRET`, `CRON_SECRET`, and `LOCAL_SETUP_TOKEN` from the old installation's `.env` into a `.env` in the new directory; first start reuses them. Move old data with the `pg_dump` steps in [Full server backup](#full-server-backup).
+
+**Uninstall**:
+
+```bash
+docker compose down        # stop and remove containers, keep data
+docker compose down -v     # also delete all data and secrets, irreversibly!
+```
+
+## FAQ
+
+**The `init` container shows `Exited (0)`?** Expected. It only generates secrets and then exits.
+
+**Signing in sends me straight back to the login page?** `APP_URL` starts with `https://` but you opened SubBoost over `http://`, so the browser does not send the secure cookie. Use HTTPS, or set `APP_URL` to the address you actually use.
+
+**The subscription link points at `localhost`?** `APP_URL` is not set. Set it in `.env`, run `docker compose up -d`, and copy the link again.
+
+**My client rejects fields like `direct-nameserver`?** Its core is too old; upgrade to Mihomo 1.19 or newer.
+
+**`app` never becomes `healthy`?** Check `docker compose logs app`. A common cause is a database volume from another installation with a different password; for a fresh install you can `docker compose down -v` and start over.
+
+**Do subscription links survive moving servers?** Yes. Export a dashboard backup and import it on the new server; tokens stay the same, so clients need no changes as long as the new server uses the same domain (`APP_URL`).
+
+## Development
+
+Start a local development environment from source (requires Node.js 24.22.1+ or 26.12.1+ and a local PostgreSQL):
 
 ```bash
 npm ci
@@ -77,30 +352,14 @@ npm run test:unit
 npm run check:local-app
 ```
 
-## Links
-
-- Online entry: [https://subboost.org](https://subboost.org)
-- Deployment docs: [https://docs.subboost.org](https://docs.subboost.org)
-- Release announcements: [docs/release-notes.md](./docs/release-notes.md)
-- Changelog: [https://subboost.org/faq](https://subboost.org/faq)
-- Forum feedback: [LINUX DO](https://linux.do/) & [IDC Flare](https://idcflare.com/).
-
-## Star History
-
-<a href="https://www.star-history.com/?repos=subboost%2Fsubboost&type=date&legend=top-left">
- <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=subboost/subboost&type=date&theme=dark&legend=top-left" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=subboost/subboost&type=date&legend=top-left" />
-   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=subboost/subboost&type=date&legend=top-left" />
- </picture>
-</a>
+See [docs/CONTRIBUTING.md](./docs/CONTRIBUTING.md) for contributing and [docs/release-notes.md](./docs/release-notes.md) for release notes.
 
 ## License
 
-The public SubBoost source code is licensed under the [GNU Affero General Public License v3.0 only](./LICENSE).
+SubBoost public source code is licensed under the [GNU Affero General Public License v3.0 only](./LICENSE).
 
-If you modify SubBoost and provide it to users over a network, AGPL-3.0 requires you to offer those users the corresponding source code. The public source for this fork is [Playfullycat/subboost](https://github.com/Playfullycat/subboost); the upstream project is [SubBoost/subboost](https://github.com/SubBoost/subboost).
+If you modify SubBoost and provide it to users over a network, AGPL-3.0 requires you to make the corresponding source code available to those users. This fork's public source is [Playfullycat/subboost](https://github.com/Playfullycat/subboost); the upstream project is [SubBoost/subboost](https://github.com/SubBoost/subboost) (hosted service at [subboost.org](https://subboost.org), docs at [docs.subboost.org](https://docs.subboost.org)).
 
 ## Disclaimer
 
-This project does not provide any proxy service and makes no guarantee about the availability or legality of third-party subscription content.
+This project does not provide proxy services and makes no guarantees about the availability or legality of third-party subscription content.
