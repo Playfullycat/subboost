@@ -102,10 +102,11 @@ EOF
 
 ```bash
 SUBBOOST_ADMIN_USERNAME=admin
-SUBBOOST_ADMIN_PASSWORD=至少10位的密码
+SUBBOOST_ADMIN_PASSWORD='至少10位的密码'
 ```
 
-只在第一次启动、还没有管理员时生效，之后修改这两项不会改动已有账号（改密码请在后台操作）。
+- 密码至少 10 位。**在 `.env` 中用单引号包住整个密码**，这样 `$`、`#`、空格等字符都会原样保留；直接写在 `docker-compose.yml` 里时，`$` 要写成 `$$`，含 `#` 或空格时给整个值加双引号。否则 `$xxx` 会被 docker compose 当成变量替换掉，实际密码就和你填的不一样了（启动时会看到 `The "xxx" variable is not set` 警告）。
+- 只在第一次启动、还没有管理员时生效，之后修改这两项不会改动已有账号；需要强制改成这里的账号密码时，见 [用 docker-compose 重置管理员](#用-docker-compose-重置管理员)。
 
 使用 1Panel 部署请看 [使用 1Panel 部署](#使用-1panel-部署)。更多选项见 [配置说明](#配置说明)。
 
@@ -126,7 +127,7 @@ docker compose up -d
 
 ### 4. 登录
 
-管理员账号已经自动创建好。没有自定义密码时，查看自动生成的账号密码：
+管理员账号已经自动创建好，账号密码（自动生成或自定义的都会）打印在日志里：
 
 ```bash
 docker compose logs app | grep -E "Username|Password"
@@ -139,7 +140,7 @@ app-1  | [subboost]   用户名 Username: admin
 app-1  | [subboost]   密码   Password: 3f9c2a7d41e85b06c9d2e1f4
 ```
 
-在浏览器打开 `APP_URL` 用这组账号密码登录，**登录后建议在「账户设置 → 修改密码」中换成自己的密码**。日志被清理后也能找回初始密码，见 [找回初始密码](#找回初始密码)。在 `.env` 中自定义了账号密码时，日志里不会打印密码，直接用你设置的账号密码登录即可。
+在浏览器打开 `APP_URL` 用这组账号密码登录，**登录后建议在「账户设置 → 修改密码」中换成自己的密码**。日志里打印的就是实际生效的密码，如果和你在 compose 中填的不一样，多半是 `$` 等字符被替换了。之后每次启动都会检查 compose 中的账号密码：一致时再次打印，不一致时会提示原因，见 [登录不上](#登录不上)。
 
 ### 5. 开始使用
 
@@ -157,7 +158,8 @@ app-1  | [subboost]   密码   Password: 3f9c2a7d41e85b06c9d2e1f4
 | `SUBBOOST_PORT` | `3000` | 服务器上对外暴露的端口。修改后记得同步修改 `APP_URL`。 |
 | `TRUST_PROXY_HEADERS` | `false` | 按反向代理传来的客户端 IP 限制登录频率：放在反向代理之后设为 `true`；前面还有 Cloudflare CDN 时设为 `cloudflare`；直接暴露端口时保持 `false`。见 [反向代理与 HTTPS](#反向代理与-https)。 |
 | `SUBBOOST_ADMIN_USERNAME` | `admin` | 首次启动时自动创建的管理员用户名。 |
-| `SUBBOOST_ADMIN_PASSWORD` | 自动生成 | 首次启动时自动创建的管理员密码，至少 10 位。只在还没有管理员时生效，之后修改不会影响已有账号。 |
+| `SUBBOOST_ADMIN_PASSWORD` | 自动生成 | 首次启动时自动创建的管理员密码，至少 10 位。只在还没有管理员时生效，之后修改不会影响已有账号。`$` 的写法见 [登录](#4-登录) 上方说明。 |
+| `SUBBOOST_ADMIN_RESET` | `false` | 设为 `true` 时，启动时把已有管理员重置为上面两项的账号密码，并让所有设备重新登录。登录成功后请改回 `false`。 |
 | `SUBBOOST_IMAGE` | 发布版本对应的镜像 | 指定镜像，例如锁定版本 `ghcr.io/playfullycat/subboost:v2.15.0`。 |
 
 示例：
@@ -258,10 +260,10 @@ TRUST_PROXY_HEADERS=true
          SUBBOOST_ADMIN_PASSWORD: ${SUBBOOST_ADMIN_PASSWORD:-至少10位的密码}  # 可选：留空则自动生成
    ```
 
-   3000 端口被占用时，把 `${SUBBOOST_PORT:-3000}` 改成其他端口，例如 `${SUBBOOST_PORT:-3080}`，后面反向代理地址也同步修改。确认后等待编排启动，在「容器」列表中看到 `subboost-app-1` 正常运行。
+   密码里的 `$` 要写成 `$$`，含 `#` 或空格时给整个值加双引号，例如 `"${SUBBOOST_ADMIN_PASSWORD:-my pa$$word #1}"`。3000 端口被占用时，把 `${SUBBOOST_PORT:-3000}` 改成其他端口，例如 `${SUBBOOST_PORT:-3080}`，后面反向代理地址也同步修改。确认后等待编排启动，在「容器」列表中看到 `subboost-app-1` 正常运行。
 3. **创建反向代理网站**：进入「网站 → 创建网站 → 反向代理」，主域名填 `sub.example.com`，代理地址填 `http://127.0.0.1:3000`，创建。
 4. **开启 HTTPS**：在该网站的「设置 → HTTPS」中申请或选择证书并启用 HTTPS（证书可在「网站 → 证书」中申请）。1Panel 默认的反代配置已经用 `$remote_addr` 设置 `X-Real-IP`，不需要再修改；如果网站前面还开了 Cloudflare CDN，把第 2 步的 `TRUST_PROXY_HEADERS` 改成 `cloudflare`。
-5. **登录**：打开 `https://sub.example.com`，用第 2 步设置的账号密码登录。没有设置密码时，在「容器」列表中打开 `subboost-app-1` 的日志，搜索 `Password` 查看自动生成的密码。
+5. **登录**：在「容器」列表中打开 `subboost-app-1` 的日志，搜索 `Password` 可以看到账号密码（自动生成或自定义的都会打印），然后打开 `https://sub.example.com` 登录。
 
 本 README 中的 `docker compose ...` 命令需要在编排文件所在目录执行。1Panel 默认把编排保存在 `/opt/1panel/docker/compose/subboost/`（数据目录改过时以实际路径为准），可以在 1Panel 的「终端」中 `cd` 到该目录后执行。
 
@@ -285,6 +287,29 @@ SubBoost 只有一个管理员账号，第一次启动时自动创建（见 [登
 docker compose exec -T app cat /run/subboost/secrets/SUBBOOST_ADMIN_PASSWORD
 ```
 
+### 登录不上
+
+先看日志里关于管理员的提示：
+
+```bash
+docker compose logs app | grep "\[subboost\]"
+```
+
+| 日志提示 | 原因与处理 |
+|---|---|
+| 打印了「用户名 / 密码」 | 用日志里打印的账号密码登录。和你填的不一样，说明 `$` 等字符被 docker compose 替换了，按 [登录](#4-登录) 上方的写法修改 |
+| 「管理员账号已存在……与已有账号不一致」 | 数据库里已有之前创建的管理员（例如重新部署但没有删除数据卷），compose 中的新账号密码不会自动生效。按 [用 docker-compose 重置管理员](#用-docker-compose-重置管理员) 处理 |
+| 「SUBBOOST_ADMIN_PASSWORD 无效」 | 密码少于 10 位，按提示修改后 `docker compose up -d` |
+| 账号密码正确，但登录后又回到登录页 | `APP_URL` 与浏览器地址不一致（例如 `APP_URL` 是 `https://` 却用 `http://IP:端口` 访问），见 [设置访问地址](#2-设置访问地址-app_url) |
+
+### 用 docker-compose 重置管理员
+
+管理员已经存在、想直接改成 compose 中的账号密码时（无需执行 SQL）：
+
+1. 在 `.env` 或 `docker-compose.yml` 中设置好 `SUBBOOST_ADMIN_USERNAME`、`SUBBOOST_ADMIN_PASSWORD`，并设置 `SUBBOOST_ADMIN_RESET=true`；
+2. 执行 `docker compose up -d`，日志会打印「已重置管理员账号密码」和新的账号密码，所有设备上的旧登录都会失效；
+3. 登录成功后把 `SUBBOOST_ADMIN_RESET` 改回 `false` 并再执行一次 `docker compose up -d`。不改回的话，之后在后台修改的密码会在下次重启时又被重置。
+
 ### 自动创建失败时
 
 如果自定义的 `SUBBOOST_ADMIN_PASSWORD` 不符合要求（少于 10 位），不会自动创建管理员，日志中会给出原因和一条备用的初始化链接。可以修改密码后执行 `docker compose up -d` 重新创建，也可以打开日志中的链接手动创建：
@@ -299,7 +324,7 @@ docker compose logs app | grep setup-token
 
 ### 忘记密码
 
-忘记密码时无法登录，可以在服务器上直接重置（新密码至少 10 位，首尾空格会被忽略）：
+忘记密码时最简单的办法是 [用 docker-compose 重置管理员](#用-docker-compose-重置管理员)。也可以在服务器上直接执行命令重置（新密码至少 10 位，首尾空格会被忽略）：
 
 ```bash
 read -rsp "新密码: " NEW_PASSWORD; echo

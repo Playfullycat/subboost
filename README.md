@@ -102,10 +102,11 @@ Rules:
 
 ```bash
 SUBBOOST_ADMIN_USERNAME=admin
-SUBBOOST_ADMIN_PASSWORD=at-least-10-characters
+SUBBOOST_ADMIN_PASSWORD='at-least-10-characters'
 ```
 
-They only apply on first start while no admin exists; changing them later does not touch the existing account (change the password in the dashboard instead).
+- The password needs at least 10 characters. **Wrap the whole password in single quotes in `.env`** so `$`, `#`, and spaces are kept as-is. When writing it directly in `docker-compose.yml`, write `$` as `$$`, and wrap values containing `#` or spaces in double quotes. Otherwise docker compose treats `$xxx` as a variable and the real password differs from what you typed (you will see a `The "xxx" variable is not set` warning on start).
+- They only apply on first start while no admin exists; changing them later does not touch the existing account. To force the existing admin to these credentials, see [Reset the admin from docker-compose](#reset-the-admin-from-docker-compose).
 
 For 1Panel, see [Deploy with 1Panel](#deploy-with-1panel). See [Configuration](#configuration) for more options.
 
@@ -126,7 +127,7 @@ Run `docker compose ps`; once `app` shows `healthy`, it is ready.
 
 ### 4. Sign in
 
-The admin account is created for you. If you did not set a password, read the generated credentials:
+The admin account is created for you, and its credentials (generated or your own) are printed in the logs:
 
 ```bash
 docker compose logs app | grep -E "Username|Password"
@@ -139,7 +140,7 @@ app-1  | [subboost]   用户名 Username: admin
 app-1  | [subboost]   密码   Password: 3f9c2a7d41e85b06c9d2e1f4
 ```
 
-Open `APP_URL` in the browser and sign in with them. **Changing the password afterwards under Settings → Change password is recommended.** If the logs are gone, see [Recover the initial password](#recover-the-initial-password). If you set your own credentials in `.env`, the password is not printed; just sign in with what you chose.
+Open `APP_URL` in the browser and sign in with them. **Changing the password afterwards under Settings → Change password is recommended.** The logged password is the one actually in effect; if it differs from what you put in compose, characters such as `$` were substituted. Every later start checks the compose credentials again: they are printed when they still match, and a warning explains a mismatch (see [Cannot sign in](#cannot-sign-in)).
 
 ### 5. Start using it
 
@@ -157,7 +158,8 @@ Put settings in a `.env` file next to `docker-compose.yml` and run `docker compo
 | `SUBBOOST_PORT` | `3000` | The port published on the server. Update `APP_URL` when you change it. |
 | `TRUST_PROXY_HEADERS` | `false` | Rate limit sign-in by the client IP the reverse proxy passes: `true` behind a reverse proxy, `cloudflare` when Cloudflare's CDN is also in front, `false` when the port is exposed directly. See [Reverse proxy and HTTPS](#reverse-proxy-and-https). |
 | `SUBBOOST_ADMIN_USERNAME` | `admin` | Username of the admin created on first start. |
-| `SUBBOOST_ADMIN_PASSWORD` | Generated | Password of the admin created on first start, at least 10 characters. Only applies while no admin exists; later changes do not affect the existing account. |
+| `SUBBOOST_ADMIN_PASSWORD` | Generated | Password of the admin created on first start, at least 10 characters. Only applies while no admin exists; later changes do not affect the existing account. See the notes above [Sign in](#4-sign-in) for writing `$`. |
+| `SUBBOOST_ADMIN_RESET` | `false` | When `true`, resets the existing admin to the two settings above on start and signs out every device. Set it back to `false` after you sign in. |
 | `SUBBOOST_IMAGE` | The release's image | Override the image, for example to pin `ghcr.io/playfullycat/subboost:v2.15.0`. |
 
 Example:
@@ -258,10 +260,10 @@ To allow access only through the proxy, change the `app` port mapping in `docker
          SUBBOOST_ADMIN_PASSWORD: ${SUBBOOST_ADMIN_PASSWORD:-at-least-10-characters}  # optional; empty = generated
    ```
 
-   If port 3000 is taken, change `${SUBBOOST_PORT:-3000}` to another port such as `${SUBBOOST_PORT:-3080}` and use it in the proxy address below. Confirm and wait until `subboost-app-1` is running in the container list.
+   Write `$` in the password as `$$`, and wrap values containing `#` or spaces in double quotes, e.g. `"${SUBBOOST_ADMIN_PASSWORD:-my pa$$word #1}"`. If port 3000 is taken, change `${SUBBOOST_PORT:-3000}` to another port such as `${SUBBOOST_PORT:-3080}` and use it in the proxy address below. Confirm and wait until `subboost-app-1` is running in the container list.
 3. **Create the reverse proxy site**: go to **Websites → Create → Reverse proxy** (`网站 → 创建网站 → 反向代理`), set the primary domain to `sub.example.com` and the proxy address to `http://127.0.0.1:3000`, and create it.
 4. **Enable HTTPS**: in the site's **Settings → HTTPS**, apply for or pick a certificate and enable HTTPS (certificates can be requested under **Websites → Certificates**). 1Panel's default proxy config already sets `X-Real-IP` from `$remote_addr`, so nothing else needs changing; if Cloudflare's CDN is also in front, set `TRUST_PROXY_HEADERS` in step 2 to `cloudflare`.
-5. **Sign in**: open `https://sub.example.com` and sign in with the credentials from step 2. If you left the password empty, open the logs of `subboost-app-1` from the container list and search for `Password` to see the generated one.
+5. **Sign in**: open the logs of `subboost-app-1` from the container list and search for `Password` to see the credentials (generated or your own), then open `https://sub.example.com` and sign in.
 
 Run the `docker compose ...` commands in this README from the directory that holds the compose file. 1Panel stores stacks in `/opt/1panel/docker/compose/subboost/` by default (use your real path if you changed the data directory); `cd` there from 1Panel's **Terminal** first.
 
@@ -285,6 +287,29 @@ If you did not set your own password, the generated initial password can be read
 docker compose exec -T app cat /run/subboost/secrets/SUBBOOST_ADMIN_PASSWORD
 ```
 
+### Cannot sign in
+
+Check the admin messages in the logs first:
+
+```bash
+docker compose logs app | grep "\[subboost\]"
+```
+
+| Log message | Cause and fix |
+|---|---|
+| Username / Password printed | Sign in with the printed credentials. If they differ from what you set, docker compose substituted characters such as `$`; follow the notes above [Sign in](#4-sign-in) |
+| "管理员账号已存在……与已有账号不一致" (admin already exists, credentials differ) | The database already has an admin from earlier (for example a redeploy that kept the volumes), so new compose credentials do not apply automatically. See [Reset the admin from docker-compose](#reset-the-admin-from-docker-compose) |
+| "SUBBOOST_ADMIN_PASSWORD 无效" (invalid) | The password has fewer than 10 characters; fix it and run `docker compose up -d` |
+| Credentials are right but you land back on the login page | `APP_URL` does not match the browser address (for example `APP_URL` is `https://` but you open `http://IP:port`); see [Set the access URL](#2-set-the-access-url-app_url) |
+
+### Reset the admin from docker-compose
+
+When the admin already exists and you want the compose credentials instead (no SQL needed):
+
+1. Set `SUBBOOST_ADMIN_USERNAME` and `SUBBOOST_ADMIN_PASSWORD` in `.env` or `docker-compose.yml`, and set `SUBBOOST_ADMIN_RESET=true`.
+2. Run `docker compose up -d`. The log prints "已重置管理员账号密码" (admin reset) with the new credentials, and every existing sign-in stops working.
+3. After signing in, set `SUBBOOST_ADMIN_RESET` back to `false` and run `docker compose up -d` again. Otherwise a password you later change in the dashboard is reset on the next restart.
+
 ### If automatic creation fails
 
 If your `SUBBOOST_ADMIN_PASSWORD` does not meet the rules (fewer than 10 characters), no admin is created and the log explains why and prints a fallback setup link. Fix the password and run `docker compose up -d` to try again, or open the link from the log to create the admin by hand:
@@ -299,7 +324,7 @@ After signing in, go to **Settings → Change password** (`账户设置 → 修�
 
 ### Forgot the password
 
-If you cannot sign in, reset the password on the server (at least 10 characters; leading and trailing spaces are ignored):
+The easiest way is [Reset the admin from docker-compose](#reset-the-admin-from-docker-compose). You can also reset the password on the server with commands (at least 10 characters; leading and trailing spaces are ignored):
 
 ```bash
 read -rsp "New password: " NEW_PASSWORD; echo

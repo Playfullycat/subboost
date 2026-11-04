@@ -69,10 +69,13 @@ services:
       # 放在反向代理之后时设为 true（信任代理写入的 X-Real-IP / X-Forwarded-For 最后一项）；
       # 前面还有 Cloudflare CDN 时设为 cloudflare；直接暴露端口时保持 false。
       TRUST_PROXY_HEADERS: ${TRUST_PROXY_HEADERS:-false}
-      # 管理员账号：首次启动且还没有管理员时自动创建，之后修改这里不会影响已有账号。
-      # 密码留空会自动生成，并打印在 `docker compose logs app` 中；自定义密码至少 10 位。
+      # 管理员账号：首次启动且还没有管理员时自动创建，账号密码会打印在 `docker compose logs app` 中。
+      # 密码留空会自动生成；自定义密码至少 10 位，密码里的 $ 要写成 $$，含 # 或空格时给整个值加双引号。
+      # 已有管理员时修改这里不会生效；要强制改成这里的账号密码，把 SUBBOOST_ADMIN_RESET 设为 true
+      # 后执行 docker compose up -d，登录成功后改回 false。
       SUBBOOST_ADMIN_USERNAME: ${SUBBOOST_ADMIN_USERNAME:-admin}
       SUBBOOST_ADMIN_PASSWORD: ${SUBBOOST_ADMIN_PASSWORD:-}
+      SUBBOOST_ADMIN_RESET: ${SUBBOOST_ADMIN_RESET:-false}
       POSTGRES_DB: subboost
       POSTGRES_USER: subboost
       # 以下变量留空时从 subboost-secrets 读取，一般不需要设置。
