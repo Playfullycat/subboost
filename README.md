@@ -4,7 +4,7 @@
   <h1>SubBoost</h1>
   <p>
     <img src="https://img.shields.io/badge/platform-Linux%20%2B%20Docker-lightgrey.svg" alt="Platform: Linux + Docker">
-    <img src="https://img.shields.io/badge/version-2.15.0-green.svg" alt="Version 2.15.0">
+    <img src="https://img.shields.io/badge/version-2.15.1-green.svg" alt="Version 2.15.1">
     <a href="https://github.com/Playfullycat/subboost/pkgs/container/subboost"><img src="https://img.shields.io/badge/image-GHCR-blue.svg" alt="GHCR image"></a>
     <a href="./LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-orange.svg" alt="AGPL-3.0"></a>
   </p>
@@ -160,7 +160,7 @@ Put settings in a `.env` file next to `docker-compose.yml` and run `docker compo
 | `SUBBOOST_ADMIN_USERNAME` | `admin` | Username of the admin created on first start. |
 | `SUBBOOST_ADMIN_PASSWORD` | Generated | Password of the admin created on first start, at least 10 characters. Only applies while no admin exists; later changes do not affect the existing account. See the notes above [Sign in](#4-sign-in) for writing `$`. |
 | `SUBBOOST_ADMIN_RESET` | `false` | When `true`, resets the existing admin to the two settings above on start and signs out every device. Set it back to `false` after you sign in. |
-| `SUBBOOST_IMAGE` | The release's image | Override the image, for example to pin `ghcr.io/playfullycat/subboost:v2.15.0`. |
+| `SUBBOOST_IMAGE` | The release's image | Override the image, for example to pin `ghcr.io/playfullycat/subboost:v2.15.1`. |
 
 Example:
 

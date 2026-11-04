@@ -4,7 +4,7 @@
   <h1>SubBoost</h1>
   <p>
     <img src="https://img.shields.io/badge/platform-Linux%20%2B%20Docker-lightgrey.svg" alt="平台：Linux + Docker">
-    <img src="https://img.shields.io/badge/version-2.15.0-green.svg" alt="版本 2.15.0">
+    <img src="https://img.shields.io/badge/version-2.15.1-green.svg" alt="版本 2.15.1">
     <a href="https://github.com/Playfullycat/subboost/pkgs/container/subboost"><img src="https://img.shields.io/badge/image-GHCR-blue.svg" alt="GHCR 镜像"></a>
     <a href="./LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-orange.svg" alt="AGPL-3.0"></a>
   </p>
@@ -160,7 +160,7 @@ app-1  | [subboost]   密码   Password: 3f9c2a7d41e85b06c9d2e1f4
 | `SUBBOOST_ADMIN_USERNAME` | `admin` | 首次启动时自动创建的管理员用户名。 |
 | `SUBBOOST_ADMIN_PASSWORD` | 自动生成 | 首次启动时自动创建的管理员密码，至少 10 位。只在还没有管理员时生效，之后修改不会影响已有账号。`$` 的写法见 [登录](#4-登录) 上方说明。 |
 | `SUBBOOST_ADMIN_RESET` | `false` | 设为 `true` 时，启动时把已有管理员重置为上面两项的账号密码，并让所有设备重新登录。登录成功后请改回 `false`。 |
-| `SUBBOOST_IMAGE` | 发布版本对应的镜像 | 指定镜像，例如锁定版本 `ghcr.io/playfullycat/subboost:v2.15.0`。 |
+| `SUBBOOST_IMAGE` | 发布版本对应的镜像 | 指定镜像，例如锁定版本 `ghcr.io/playfullycat/subboost:v2.15.1`。 |
 
 示例：
 

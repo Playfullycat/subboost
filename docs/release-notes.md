@@ -1,29 +1,23 @@
-# SubBoost v2.15.0
+# SubBoost v2.15.1
 
 基于上游 [SubBoost/subboost](https://github.com/SubBoost/subboost) v2.11.0 的分支版本。
 
 ## 中文
 
-### 首次启动自动创建管理员
+### 修复：在 docker-compose 中设置管理员密码后无法登录
 
-不再需要从日志里找初始化链接再去网页上创建管理员：
+- 每次启动都会检查管理员账号并打印到 `docker compose logs app`：新建时打印用户名和实际生效的密码（自动生成或在 docker-compose 中设置的都会打印）；已有管理员且与配置一致时再次打印；与配置不一致时说明原因和处理方法，不再静默跳过。
+- 新增 `SUBBOOST_ADMIN_RESET=true`：启动时把已有管理员重置为 docker-compose 中的账号密码，并让所有设备重新登录；登录成功后改回 `false`。
+- 文档说明密码中特殊字符的写法：`$` 会被 docker compose 当成变量替换，在 `.env` 中用单引号包住整个密码，或在 docker-compose.yml 中把 `$` 写成 `$$`；含 `#` 或空格时给整个值加双引号。README 新增「登录不上」排查表。
 
-- 首次启动且还没有管理员时，自动创建管理员账号。用户名默认 `admin`，密码自动生成并打印在 `docker compose logs app` 中；日志被清理后可用 `docker compose exec app cat /run/subboost/secrets/SUBBOOST_ADMIN_PASSWORD` 查看初始密码。
-- 也可以在 `docker-compose.yml` 或 `.env` 中通过 `SUBBOOST_ADMIN_USERNAME` / `SUBBOOST_ADMIN_PASSWORD` 自己指定账号密码（至少 10 位），自定义的密码不会打印到日志。
-- 只在还没有管理员时生效，之后修改这两项不会改动已有账号；已有部署升级不受影响。
-- 自定义密码不符合要求时不会自动创建，日志中会给出原因和备用的初始化链接。
-
-登录后建议在「账户设置 → 修改密码」中换成自己的密码。升级执行 `docker compose pull && docker compose up -d` 即可；1Panel 等手动粘贴 compose 的部署，可按 README 在 `app` 的 `environment` 中加入上述两项（可选）。
+升级提示：执行 `docker compose pull && docker compose up -d` 即可。之前因密码被替换而无法登录的部署，在 `.env` 中设置正确的 `SUBBOOST_ADMIN_PASSWORD` 和 `SUBBOOST_ADMIN_RESET=true` 后执行 `docker compose up -d`，登录成功后再把 `SUBBOOST_ADMIN_RESET` 改回 `false`。
 
 ## English
 
-### Admin account created on first start
+### Fix: cannot sign in after setting the admin password in docker-compose
 
-No more finding a setup link in the logs and creating the admin in the browser:
+- Every start checks the admin account and reports it in `docker compose logs app`: creation prints the username and the password actually in effect (generated or from docker-compose); an existing admin that still matches the configuration is printed again; a mismatch explains why and how to fix it instead of being skipped silently.
+- New `SUBBOOST_ADMIN_RESET=true`: on start, resets the existing admin to the docker-compose credentials and signs out every device; set it back to `false` after signing in.
+- Documented special characters in passwords: docker compose substitutes `$` as a variable, so wrap the whole password in single quotes in `.env`, or write `$` as `$$` in docker-compose.yml; wrap values containing `#` or spaces in double quotes. The README gains a "Cannot sign in" troubleshooting table.
 
-- On first start with no admin, the admin account is created automatically. The username defaults to `admin`, and the generated password is printed in `docker compose logs app`; if the logs are gone, read it with `docker compose exec app cat /run/subboost/secrets/SUBBOOST_ADMIN_PASSWORD`.
-- You can also set your own credentials with `SUBBOOST_ADMIN_USERNAME` / `SUBBOOST_ADMIN_PASSWORD` (at least 10 characters) in `docker-compose.yml` or `.env`; a password you set is never printed to the logs.
-- They only apply while no admin exists; changing them later does not touch the existing account, and existing deployments are unaffected by the upgrade.
-- If your password does not meet the rules, no admin is created and the log explains why and prints a fallback setup link.
-
-Changing the password under Settings → Change password after signing in is recommended. Upgrade with `docker compose pull && docker compose up -d`; deployments that paste the compose file by hand (such as 1Panel) can optionally add the two settings to the `app` `environment` as shown in the README.
+Upgrade note: run `docker compose pull && docker compose up -d`. Deployments that could not sign in because the password was substituted can set the correct `SUBBOOST_ADMIN_PASSWORD` plus `SUBBOOST_ADMIN_RESET=true` in `.env`, run `docker compose up -d`, and set `SUBBOOST_ADMIN_RESET` back to `false` after signing in.
