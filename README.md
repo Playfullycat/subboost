@@ -26,6 +26,8 @@ This repository is a fork of [SubBoost/subboost](https://github.com/SubBoost/sub
 - [Screenshot](#screenshot)
 - [Quick Start](#quick-start)
 - [Configuration](#configuration)
+  - [Reverse proxy and HTTPS](#reverse-proxy-and-https)
+  - [Deploy with 1Panel](#deploy-with-1panel)
 - [Admin Account](#admin-account)
 - [Using Subscriptions](#using-subscriptions)
 - [Routing Inside Mainland China](#routing-inside-mainland-china)
@@ -70,17 +72,33 @@ curl -fsSLO https://github.com/Playfullycat/subboost/releases/latest/download/do
 
 > The `docker-compose.yml` attached to a release is pinned to that release's image. You can also use the repository's [docker-compose.yml](./docker-compose.yml), which uses the `latest` image.
 
-### 2. Set the access URL (recommended)
+### 2. Set the access URL `APP_URL`
 
-Create a `.env` file in the same directory with the address you open SubBoost at:
+Create a `.env` file in the same directory with **the address you type into the browser's address bar to open SubBoost**:
 
 ```bash
 cat > .env <<'EOF'
-APP_URL=http://YOUR_SERVER_IP:3000
+APP_URL=https://sub.example.com
 EOF
 ```
 
-`APP_URL` is used to build subscription links, so clients must be able to reach it. Skip this step if you only use SubBoost on the same machine (defaults to `http://localhost:3000`). See [Configuration](#configuration) for more options.
+`APP_URL` sets the address of subscription links and the setup link, and decides whether the login cookie is HTTPS-only. Pick the value that matches how you access it:
+
+| Access | `APP_URL` |
+|---|---|
+| Reverse proxy + domain + HTTPS (1Panel, BT Panel, Caddy, Nginx, …) | `https://sub.example.com` |
+| Reverse proxy + domain without HTTPS | `http://sub.example.com` |
+| Server IP and port directly | `http://1.2.3.4:3000` (same port as `SUBBOOST_PORT`) |
+| Same machine only | Leave unset; defaults to `http://localhost:3000` |
+
+Rules:
+
+- It must **exactly match** the browser address: scheme (`http` / `https`), domain or IP, and port. No path and no trailing `/`.
+- Behind a reverse proxy, use the **public domain address**, not the proxy target `http://127.0.0.1:3000`.
+- If it says `https://` but you open the site over `http://`, sign-in fails (the browser will not send the secure cookie).
+- After changing `APP_URL`, run `docker compose up -d`; the dashboard shows subscription links with the new address. Links already added to clients need to be copied again if the old address no longer works.
+
+For 1Panel, see [Deploy with 1Panel](#deploy-with-1panel). See [Configuration](#configuration) for more options.
 
 ### 3. Start
 
@@ -122,7 +140,7 @@ Put settings in a `.env` file next to `docker-compose.yml` and run `docker compo
 |---|---|---|
 | `APP_URL` | `http://localhost:3000` | The address browsers and clients use to reach SubBoost; used to build subscription links. With `https://`, the login cookie is only sent over HTTPS. |
 | `SUBBOOST_PORT` | `3000` | The port published on the server. Update `APP_URL` when you change it. |
-| `TRUST_PROXY_HEADERS` | `false` | Set to `true` only behind a reverse proxy that sanitizes and rewrites `X-Forwarded-For` / `X-Real-IP`, so login rate limits use the real client IP. Keep `false` when the port is exposed directly. |
+| `TRUST_PROXY_HEADERS` | `false` | When `true`, sign-in rate limits use the client IP passed by the reverse proxy. Enable it only if the proxy overwrites `X-Real-IP` and drops `CF-Connecting-IP`; see [Reverse proxy and HTTPS](#reverse-proxy-and-https). Keep `false` when the port is exposed directly. |
 | `SUBBOOST_IMAGE` | The release's image | Override the image, for example to pin `ghcr.io/playfullycat/subboost:v2.14.0`. |
 
 Example:
@@ -156,11 +174,16 @@ A variable with the same name in `.env` takes precedence (mainly for migrating f
 
 ### Reverse proxy and HTTPS
 
-Serving SubBoost over HTTPS through a reverse proxy is recommended. With [Caddy](https://caddyserver.com/) (automatic certificates):
+Serving SubBoost over HTTPS through a reverse proxy is recommended. Point the proxy at `http://127.0.0.1:3000` and set `APP_URL` to the public `https://` domain.
+
+With [Caddy](https://caddyserver.com/) (automatic certificates):
 
 ```caddyfile
 sub.example.com {
-    reverse_proxy 127.0.0.1:3000
+    reverse_proxy 127.0.0.1:3000 {
+        header_up X-Real-IP {remote_host}
+        header_up -CF-Connecting-IP
+    }
 }
 ```
 
@@ -178,11 +201,50 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $remote_addr;
         proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header CF-Connecting-IP "";
     }
 }
 ```
 
-Then set `APP_URL=https://sub.example.com` and `TRUST_PROXY_HEADERS=true` in `.env`. To allow access only through the proxy, change the port mapping in `docker-compose.yml` to `"127.0.0.1:3000:3000"` so the port is not exposed publicly.
+Then set in `.env`:
+
+```bash
+APP_URL=https://sub.example.com
+TRUST_PROXY_HEADERS=true
+```
+
+About `TRUST_PROXY_HEADERS`: SubBoost reads the client IP from `CF-Connecting-IP`, then `X-Real-IP`, then `X-Forwarded-For` to rate limit sign-in attempts per IP. Before turning it on, the proxy must **overwrite `X-Real-IP` with the real connecting address and drop any client-supplied `CF-Connecting-IP`** (as in the examples above); otherwise attackers can fake IPs to dodge the per-IP limit. If you cannot guarantee that, keep it `false`; the limit of 8 attempts per username every 15 minutes always applies. If Cloudflare's CDN (orange cloud) sits in front, keep `CF-Connecting-IP` and only allow Cloudflare IPs to reach the origin.
+
+To allow access only through the proxy, change the `app` port mapping in `docker-compose.yml` to `"127.0.0.1:3000:3000"` so the port is not exposed publicly.
+
+### Deploy with 1Panel
+
+[1Panel](https://1panel.pro/)'s OpenResty uses host networking, so its reverse proxy can reach `127.0.0.1:3000` directly. Using the domain `sub.example.com`:
+
+1. **Create the compose stack**: go to **Containers → Compose → Create** (`容器 → 编排 → 创建编排`), name it `subboost`, choose the editor mode, and paste the contents of [docker-compose.yml](./docker-compose.yml).
+2. **Edit two settings** directly in the editor:
+
+   ```yaml
+       ports:
+         - "127.0.0.1:${SUBBOOST_PORT:-3000}:3000"   # only reachable by the local proxy
+       environment:
+         APP_URL: ${APP_URL:-https://sub.example.com}  # your domain
+         TRUST_PROXY_HEADERS: ${TRUST_PROXY_HEADERS:-true}
+   ```
+
+   If port 3000 is taken, change `${SUBBOOST_PORT:-3000}` to another port such as `${SUBBOOST_PORT:-3080}` and use it in the proxy address below. Confirm and wait until `subboost-app-1` is running in the container list.
+3. **Create the reverse proxy site**: go to **Websites → Create → Reverse proxy** (`网站 → 创建网站 → 反向代理`), set the primary domain to `sub.example.com` and the proxy address to `http://127.0.0.1:3000`, and create it.
+4. **Enable HTTPS**: in the site's **Settings → HTTPS**, apply for or pick a certificate and enable HTTPS (certificates can be requested under **Websites → Certificates**).
+5. **Block forged IPs**: 1Panel's default proxy config already sets `X-Real-IP` from `$remote_addr`, but passes a client-supplied `CF-Connecting-IP` through. Add this line to the `location` in the site's reverse proxy config (**Settings → Reverse proxy → Source**):
+
+   ```nginx
+   proxy_set_header CF-Connecting-IP "";
+   ```
+
+   Skip this step if Cloudflare's CDN sits in front of the site. If you would rather not edit the proxy config, set `TRUST_PROXY_HEADERS` in step 2 back to `false`.
+6. **Create the admin**: open the logs of `subboost-app-1` from the container list, search for `setup-token`, and open the `https://sub.example.com/login#setup-token=...` link to create the admin.
+
+Run the `docker compose ...` commands in this README from the directory that holds the compose file. 1Panel stores stacks in `/opt/1panel/docker/compose/subboost/` by default (use your real path if you changed the data directory); `cd` there from 1Panel's **Terminal** first.
 
 ### Build from source
 

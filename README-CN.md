@@ -26,6 +26,8 @@
 - [界面展示](#界面展示)
 - [快速部署](#快速部署)
 - [配置说明](#配置说明)
+  - [反向代理与 HTTPS](#反向代理与-https)
+  - [使用 1Panel 部署](#使用-1panel-部署)
 - [管理员账号](#管理员账号)
 - [使用订阅](#使用订阅)
 - [国内网络优化说明](#国内网络优化说明)
@@ -70,17 +72,33 @@ curl -fsSLO https://github.com/Playfullycat/subboost/releases/latest/download/do
 
 > 发布附件里的 `docker-compose.yml` 已锁定为对应版本的镜像。也可以直接使用仓库根目录的 [docker-compose.yml](./docker-compose.yml)，它默认使用 `latest` 镜像。
 
-### 2. 设置访问地址（推荐）
+### 2. 设置访问地址 `APP_URL`
 
-在同一目录新建 `.env` 文件，写入你在浏览器中访问 SubBoost 的地址：
+在同一目录新建 `.env` 文件，写入你**在浏览器地址栏里访问 SubBoost 的地址**：
 
 ```bash
 cat > .env <<'EOF'
-APP_URL=http://你的服务器IP:3000
+APP_URL=https://sub.example.com
 EOF
 ```
 
-`APP_URL` 用于生成订阅链接，必须是客户端能访问到的地址。只在本机使用时可以跳过这一步（默认 `http://localhost:3000`）。更多选项见 [配置说明](#配置说明)。
+`APP_URL` 决定订阅链接和初始化链接的地址，也决定登录 Cookie 是否只走 HTTPS。按你的访问方式填写：
+
+| 访问方式 | `APP_URL` 写法 |
+|---|---|
+| 反向代理 + 域名 + HTTPS（1Panel、宝塔、Caddy、Nginx 等） | `https://sub.example.com` |
+| 反向代理 + 域名，未开 HTTPS | `http://sub.example.com` |
+| 直接用 IP 和端口访问 | `http://1.2.3.4:3000`（端口与 `SUBBOOST_PORT` 一致） |
+| 只在本机使用 | 不用设置，默认 `http://localhost:3000` |
+
+填写规则：
+
+- 必须与浏览器里的地址**完全一致**：协议（`http` / `https`）、域名或 IP、端口都要对上；不要带路径和结尾的 `/`。
+- 使用反向代理时，填写**对外的域名地址**，不要填反向代理里的 `http://127.0.0.1:3000`。
+- 写成 `https://` 却用 `http://` 访问，登录会失败（浏览器不会发送安全 Cookie）。
+- 以后修改 `APP_URL` 后执行 `docker compose up -d` 生效，后台显示的订阅链接会自动换成新地址；已经添加到客户端的旧链接，旧地址不能访问时需要重新复制。
+
+使用 1Panel 部署请看 [使用 1Panel 部署](#使用-1panel-部署)。更多选项见 [配置说明](#配置说明)。
 
 ### 3. 启动
 
@@ -122,7 +140,7 @@ docker compose logs app | grep setup-token
 |---|---|---|
 | `APP_URL` | `http://localhost:3000` | 浏览器和客户端访问 SubBoost 的地址，用于生成订阅链接。使用 `https://` 时登录 Cookie 只会通过 HTTPS 发送。 |
 | `SUBBOOST_PORT` | `3000` | 服务器上对外暴露的端口。修改后记得同步修改 `APP_URL`。 |
-| `TRUST_PROXY_HEADERS` | `false` | 只有放在会清洗并重写 `X-Forwarded-For` / `X-Real-IP` 的反向代理之后时才设为 `true`，用于按真实客户端 IP 限制登录频率。直接暴露端口时保持 `false`。 |
+| `TRUST_PROXY_HEADERS` | `false` | 设为 `true` 时按反向代理传来的客户端 IP 限制登录频率。只有反向代理会覆盖 `X-Real-IP` 并清除 `CF-Connecting-IP` 时才能开启，见 [反向代理与 HTTPS](#反向代理与-https)。直接暴露端口时保持 `false`。 |
 | `SUBBOOST_IMAGE` | 发布版本对应的镜像 | 指定镜像，例如锁定版本 `ghcr.io/playfullycat/subboost:v2.14.0`。 |
 
 示例：
@@ -156,11 +174,16 @@ docker compose exec app cat /run/subboost/secrets/LOCAL_SETUP_TOKEN
 
 ### 反向代理与 HTTPS
 
-建议通过反向代理为 SubBoost 配置 HTTPS。以 [Caddy](https://caddyserver.com/) 为例（自动申请证书）：
+建议通过反向代理为 SubBoost 配置 HTTPS。反向代理统一转发到 `http://127.0.0.1:3000`，`APP_URL` 填写对外的 `https://` 域名。
+
+以 [Caddy](https://caddyserver.com/) 为例（自动申请证书）：
 
 ```caddyfile
 sub.example.com {
-    reverse_proxy 127.0.0.1:3000
+    reverse_proxy 127.0.0.1:3000 {
+        header_up X-Real-IP {remote_host}
+        header_up -CF-Connecting-IP
+    }
 }
 ```
 
@@ -178,11 +201,50 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $remote_addr;
         proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header CF-Connecting-IP "";
     }
 }
 ```
 
-然后在 `.env` 中设置 `APP_URL=https://sub.example.com` 和 `TRUST_PROXY_HEADERS=true`。如果只想通过反向代理访问，可以把 `docker-compose.yml` 中的端口映射改成 `"127.0.0.1:3000:3000"`，避免端口直接暴露到公网。
+然后在 `.env` 中设置：
+
+```bash
+APP_URL=https://sub.example.com
+TRUST_PROXY_HEADERS=true
+```
+
+关于 `TRUST_PROXY_HEADERS`：SubBoost 依次从 `CF-Connecting-IP`、`X-Real-IP`、`X-Forwarded-For` 读取客户端 IP，用来按 IP 限制登录尝试次数。开启前，反向代理必须**用真实连接地址覆盖 `X-Real-IP`，并清除客户端自带的 `CF-Connecting-IP`**（上面示例中的写法），否则攻击者可以伪造 IP 绕过按 IP 的限制。做不到时保持 `false` 即可，同一用户名 15 分钟最多 8 次的限制始终有效。如果前面还有 Cloudflare CDN（橙色云朵），不要清除 `CF-Connecting-IP`，并只允许 Cloudflare 的 IP 访问源站。
+
+只想通过反向代理访问时，把 `docker-compose.yml` 中 `app` 的端口映射改成 `"127.0.0.1:3000:3000"`，避免端口直接暴露到公网。
+
+### 使用 1Panel 部署
+
+[1Panel](https://1panel.cn/) 的 OpenResty 使用主机网络，反向代理可以直接访问 `127.0.0.1:3000`。以域名 `sub.example.com` 为例：
+
+1. **创建编排**：进入「容器 → 编排 → 创建编排」，名称填 `subboost`，选择编辑模式，把 [docker-compose.yml](./docker-compose.yml) 的内容粘贴进去。
+2. **修改两处配置**（直接在编辑框里改）：
+
+   ```yaml
+       ports:
+         - "127.0.0.1:${SUBBOOST_PORT:-3000}:3000"   # 只允许本机反代访问
+       environment:
+         APP_URL: ${APP_URL:-https://sub.example.com}  # 改成你的域名
+         TRUST_PROXY_HEADERS: ${TRUST_PROXY_HEADERS:-true}
+   ```
+
+   3000 端口被占用时，把 `${SUBBOOST_PORT:-3000}` 改成其他端口，例如 `${SUBBOOST_PORT:-3080}`，后面反向代理地址也同步修改。确认后等待编排启动，在「容器」列表中看到 `subboost-app-1` 正常运行。
+3. **创建反向代理网站**：进入「网站 → 创建网站 → 反向代理」，主域名填 `sub.example.com`，代理地址填 `http://127.0.0.1:3000`，创建。
+4. **开启 HTTPS**：在该网站的「设置 → HTTPS」中申请或选择证书并启用 HTTPS（证书可在「网站 → 证书」中申请）。
+5. **防止伪造 IP**：1Panel 默认的反代配置已经用 `$remote_addr` 设置 `X-Real-IP`，但会原样转发客户端自带的 `CF-Connecting-IP`。在该网站的反向代理配置（「设置 → 反向代理 → 源文」）的 `location` 中加一行：
+
+   ```nginx
+   proxy_set_header CF-Connecting-IP "";
+   ```
+
+   如果网站前面开了 Cloudflare CDN，跳过这一步。不想修改反代配置的话，把第 2 步的 `TRUST_PROXY_HEADERS` 改回 `false` 即可。
+6. **创建管理员**：在「容器」列表中打开 `subboost-app-1` 的日志，搜索 `setup-token`，打开 `https://sub.example.com/login#setup-token=...` 链接创建管理员。
+
+本 README 中的 `docker compose ...` 命令需要在编排文件所在目录执行。1Panel 默认把编排保存在 `/opt/1panel/docker/compose/subboost/`（数据目录改过时以实际路径为准），可以在 1Panel 的「终端」中 `cd` 到该目录后执行。
 
 ### 从源码构建
 
