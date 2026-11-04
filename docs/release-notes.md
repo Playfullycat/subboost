@@ -1,35 +1,29 @@
-# SubBoost v2.14.1
+# SubBoost v2.15.0
 
 基于上游 [SubBoost/subboost](https://github.com/SubBoost/subboost) v2.11.0 的分支版本。
 
 ## 中文
 
-### 安全修复：反向代理后的客户端 IP 识别
+### 首次启动自动创建管理员
 
-此前 `TRUST_PROXY_HEADERS=true` 会优先信任 `CF-Connecting-IP`，并取 `X-Forwarded-For` 的第一项。常见的反向代理（包括 1Panel 默认的 OpenResty 配置和 Caddy）会原样转发客户端自带的 `CF-Connecting-IP`、并在 `X-Forwarded-For` 后追加地址，导致客户端可以伪造 IP，绕过按 IP 的登录次数限制（按用户名的限制不受影响）。
+不再需要从日志里找初始化链接再去网页上创建管理员：
 
-- `TRUST_PROXY_HEADERS=true`：只信任反向代理写入的 `X-Real-IP`，没有时取 `X-Forwarded-For` 的最后一项；不再信任 `CF-Connecting-IP`。
-- 新增 `TRUST_PROXY_HEADERS=cloudflare`：前面还有 Cloudflare CDN 时使用，优先信任 `CF-Connecting-IP`（请只允许 Cloudflare 的 IP 访问源站）。
+- 首次启动且还没有管理员时，自动创建管理员账号。用户名默认 `admin`，密码自动生成并打印在 `docker compose logs app` 中；日志被清理后可用 `docker compose exec app cat /run/subboost/secrets/SUBBOOST_ADMIN_PASSWORD` 查看初始密码。
+- 也可以在 `docker-compose.yml` 或 `.env` 中通过 `SUBBOOST_ADMIN_USERNAME` / `SUBBOOST_ADMIN_PASSWORD` 自己指定账号密码（至少 10 位），自定义的密码不会打印到日志。
+- 只在还没有管理员时生效，之后修改这两项不会改动已有账号；已有部署升级不受影响。
+- 自定义密码不符合要求时不会自动创建，日志中会给出原因和备用的初始化链接。
 
-升级提示：在 Cloudflare CDN 之后并设置了 `TRUST_PROXY_HEADERS=true` 的部署，请改为 `cloudflare`；其他部署无需修改。执行 `docker compose pull && docker compose up -d` 即可升级。
-
-### 文档
-
-- 补充 `APP_URL` 在各种访问方式下的写法和填写规则。
-- 新增「使用 1Panel 部署」分步教程，包括编排、仅本机端口、反向代理网站、HTTPS 和初始化链接。
+登录后建议在「账户设置 → 修改密码」中换成自己的密码。升级执行 `docker compose pull && docker compose up -d` 即可；1Panel 等手动粘贴 compose 的部署，可按 README 在 `app` 的 `environment` 中加入上述两项（可选）。
 
 ## English
 
-### Security fix: client IP detection behind reverse proxies
+### Admin account created on first start
 
-Previously `TRUST_PROXY_HEADERS=true` trusted `CF-Connecting-IP` first and took the first `X-Forwarded-For` entry. Common reverse proxies (including 1Panel's default OpenResty config and Caddy) forward a client-supplied `CF-Connecting-IP` and append to `X-Forwarded-For`, so clients could fake their IP and dodge the per-IP sign-in limit (the per-username limit was unaffected).
+No more finding a setup link in the logs and creating the admin in the browser:
 
-- `TRUST_PROXY_HEADERS=true`: only trusts the proxy-written `X-Real-IP`, otherwise the last `X-Forwarded-For` entry; `CF-Connecting-IP` is no longer trusted.
-- New `TRUST_PROXY_HEADERS=cloudflare`: for origins behind Cloudflare's CDN; trusts `CF-Connecting-IP` first (only allow Cloudflare IPs to reach the origin).
+- On first start with no admin, the admin account is created automatically. The username defaults to `admin`, and the generated password is printed in `docker compose logs app`; if the logs are gone, read it with `docker compose exec app cat /run/subboost/secrets/SUBBOOST_ADMIN_PASSWORD`.
+- You can also set your own credentials with `SUBBOOST_ADMIN_USERNAME` / `SUBBOOST_ADMIN_PASSWORD` (at least 10 characters) in `docker-compose.yml` or `.env`; a password you set is never printed to the logs.
+- They only apply while no admin exists; changing them later does not touch the existing account, and existing deployments are unaffected by the upgrade.
+- If your password does not meet the rules, no admin is created and the log explains why and prints a fallback setup link.
 
-Upgrade note: deployments behind Cloudflare's CDN with `TRUST_PROXY_HEADERS=true` should switch to `cloudflare`; others need no change. Upgrade with `docker compose pull && docker compose up -d`.
-
-### Documentation
-
-- Explain what `APP_URL` should be for each way of accessing SubBoost, and the rules for filling it in.
-- Add a step-by-step "Deploy with 1Panel" guide covering the compose stack, a localhost-only port, the reverse proxy site, HTTPS, and the setup link.
+Changing the password under Settings → Change password after signing in is recommended. Upgrade with `docker compose pull && docker compose up -d`; deployments that paste the compose file by hand (such as 1Panel) can optionally add the two settings to the `app` `environment` as shown in the README.

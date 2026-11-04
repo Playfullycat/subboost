@@ -4,7 +4,7 @@
   <h1>SubBoost</h1>
   <p>
     <img src="https://img.shields.io/badge/platform-Linux%20%2B%20Docker-lightgrey.svg" alt="平台：Linux + Docker">
-    <img src="https://img.shields.io/badge/version-2.14.1-green.svg" alt="版本 2.14.1">
+    <img src="https://img.shields.io/badge/version-2.15.0-green.svg" alt="版本 2.15.0">
     <a href="https://github.com/Playfullycat/subboost/pkgs/container/subboost"><img src="https://img.shields.io/badge/image-GHCR-blue.svg" alt="GHCR 镜像"></a>
     <a href="./LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-orange.svg" alt="AGPL-3.0"></a>
   </p>
@@ -158,7 +158,7 @@ app-1  | [subboost]   密码   Password: 3f9c2a7d41e85b06c9d2e1f4
 | `TRUST_PROXY_HEADERS` | `false` | 按反向代理传来的客户端 IP 限制登录频率：放在反向代理之后设为 `true`；前面还有 Cloudflare CDN 时设为 `cloudflare`；直接暴露端口时保持 `false`。见 [反向代理与 HTTPS](#反向代理与-https)。 |
 | `SUBBOOST_ADMIN_USERNAME` | `admin` | 首次启动时自动创建的管理员用户名。 |
 | `SUBBOOST_ADMIN_PASSWORD` | 自动生成 | 首次启动时自动创建的管理员密码，至少 10 位。只在还没有管理员时生效，之后修改不会影响已有账号。 |
-| `SUBBOOST_IMAGE` | 发布版本对应的镜像 | 指定镜像，例如锁定版本 `ghcr.io/playfullycat/subboost:v2.14.1`。 |
+| `SUBBOOST_IMAGE` | 发布版本对应的镜像 | 指定镜像，例如锁定版本 `ghcr.io/playfullycat/subboost:v2.15.0`。 |
 
 示例：
 
