@@ -46,8 +46,25 @@ describe("local rate limits", () => {
     expect(getTrustedClientRateLimitKey(runtime)).toBe(hashLocalRateLimitKey("203.0.113.10"));
 
     process.env.TRUST_PROXY_HEADERS = "true";
+    // The proxy appends the real connecting address last; earlier entries come from the client.
     const proxied = new Request("https://local.test", { headers: { "x-forwarded-for": "198.51.100.2, 10.0.0.1" } });
-    expect(getTrustedClientRateLimitKey(proxied)).toBe(hashLocalRateLimitKey("198.51.100.2"));
+    expect(getTrustedClientRateLimitKey(proxied)).toBe(hashLocalRateLimitKey("10.0.0.1"));
+    delete process.env.TRUST_PROXY_HEADERS;
+  });
+
+  it("ignores client-supplied CF-Connecting-IP unless Cloudflare mode is enabled", () => {
+    const headers = { "cf-connecting-ip": "203.0.113.66", "x-real-ip": "198.51.100.7", "x-forwarded-for": "1.1.1.1, 198.51.100.7" };
+
+    process.env.TRUST_PROXY_HEADERS = "true";
+    expect(getTrustedClientRateLimitKey(new Request("https://local.test", { headers }))).toBe(hashLocalRateLimitKey("198.51.100.7"));
+
+    process.env.TRUST_PROXY_HEADERS = " Cloudflare ";
+    expect(getTrustedClientRateLimitKey(new Request("https://local.test", { headers }))).toBe(hashLocalRateLimitKey("203.0.113.66"));
+    const withoutCf = new Request("https://local.test", { headers: { "x-real-ip": "198.51.100.7" } });
+    expect(getTrustedClientRateLimitKey(withoutCf)).toBe(hashLocalRateLimitKey("198.51.100.7"));
+
+    process.env.TRUST_PROXY_HEADERS = "yes";
+    expect(getTrustedClientRateLimitKey(new Request("https://local.test", { headers }))).toBeNull();
     delete process.env.TRUST_PROXY_HEADERS;
   });
 

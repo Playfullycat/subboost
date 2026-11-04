@@ -140,7 +140,7 @@ Put settings in a `.env` file next to `docker-compose.yml` and run `docker compo
 |---|---|---|
 | `APP_URL` | `http://localhost:3000` | The address browsers and clients use to reach SubBoost; used to build subscription links. With `https://`, the login cookie is only sent over HTTPS. |
 | `SUBBOOST_PORT` | `3000` | The port published on the server. Update `APP_URL` when you change it. |
-| `TRUST_PROXY_HEADERS` | `false` | When `true`, sign-in rate limits use the client IP passed by the reverse proxy. Enable it only if the proxy overwrites `X-Real-IP` and drops `CF-Connecting-IP`; see [Reverse proxy and HTTPS](#reverse-proxy-and-https). Keep `false` when the port is exposed directly. |
+| `TRUST_PROXY_HEADERS` | `false` | Rate limit sign-in by the client IP the reverse proxy passes: `true` behind a reverse proxy, `cloudflare` when Cloudflare's CDN is also in front, `false` when the port is exposed directly. See [Reverse proxy and HTTPS](#reverse-proxy-and-https). |
 | `SUBBOOST_IMAGE` | The release's image | Override the image, for example to pin `ghcr.io/playfullycat/subboost:v2.14.0`. |
 
 Example:
@@ -182,7 +182,6 @@ With [Caddy](https://caddyserver.com/) (automatic certificates):
 sub.example.com {
     reverse_proxy 127.0.0.1:3000 {
         header_up X-Real-IP {remote_host}
-        header_up -CF-Connecting-IP
     }
 }
 ```
@@ -201,7 +200,6 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $remote_addr;
         proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_set_header CF-Connecting-IP "";
     }
 }
 ```
@@ -213,7 +211,15 @@ APP_URL=https://sub.example.com
 TRUST_PROXY_HEADERS=true
 ```
 
-About `TRUST_PROXY_HEADERS`: SubBoost reads the client IP from `CF-Connecting-IP`, then `X-Real-IP`, then `X-Forwarded-For` to rate limit sign-in attempts per IP. Before turning it on, the proxy must **overwrite `X-Real-IP` with the real connecting address and drop any client-supplied `CF-Connecting-IP`** (as in the examples above); otherwise attackers can fake IPs to dodge the per-IP limit. If you cannot guarantee that, keep it `false`; the limit of 8 attempts per username every 15 minutes always applies. If Cloudflare's CDN (orange cloud) sits in front, keep `CF-Connecting-IP` and only allow Cloudflare IPs to reach the origin.
+`TRUST_PROXY_HEADERS` decides how the client IP is found for per-IP sign-in rate limits:
+
+| Value | Headers used | When |
+|---|---|---|
+| `false` (default) | None; only the per-username limit (8 per 15 minutes) applies | Port exposed directly |
+| `true` | `X-Real-IP`, otherwise the **last** `X-Forwarded-For` entry | One reverse proxy (1Panel, BT Panel, Nginx, Caddy, …) |
+| `cloudflare` | `CF-Connecting-IP` first, then as `true` | Cloudflare's CDN (orange cloud) in front as well |
+
+`true` only trusts values the proxy writes itself: the proxy must overwrite `X-Real-IP` with the real connecting address (Nginx `$remote_addr`, Caddy `{remote_host}`, as above). Client-forged `CF-Connecting-IP` and leading `X-Forwarded-For` entries are ignored. With `cloudflare`, only allow Cloudflare IPs to reach the origin, or `CF-Connecting-IP` can be forged.
 
 To allow access only through the proxy, change the `app` port mapping in `docker-compose.yml` to `"127.0.0.1:3000:3000"` so the port is not exposed publicly.
 
@@ -234,15 +240,8 @@ To allow access only through the proxy, change the `app` port mapping in `docker
 
    If port 3000 is taken, change `${SUBBOOST_PORT:-3000}` to another port such as `${SUBBOOST_PORT:-3080}` and use it in the proxy address below. Confirm and wait until `subboost-app-1` is running in the container list.
 3. **Create the reverse proxy site**: go to **Websites → Create → Reverse proxy** (`网站 → 创建网站 → 反向代理`), set the primary domain to `sub.example.com` and the proxy address to `http://127.0.0.1:3000`, and create it.
-4. **Enable HTTPS**: in the site's **Settings → HTTPS**, apply for or pick a certificate and enable HTTPS (certificates can be requested under **Websites → Certificates**).
-5. **Block forged IPs**: 1Panel's default proxy config already sets `X-Real-IP` from `$remote_addr`, but passes a client-supplied `CF-Connecting-IP` through. Add this line to the `location` in the site's reverse proxy config (**Settings → Reverse proxy → Source**):
-
-   ```nginx
-   proxy_set_header CF-Connecting-IP "";
-   ```
-
-   Skip this step if Cloudflare's CDN sits in front of the site. If you would rather not edit the proxy config, set `TRUST_PROXY_HEADERS` in step 2 back to `false`.
-6. **Create the admin**: open the logs of `subboost-app-1` from the container list, search for `setup-token`, and open the `https://sub.example.com/login#setup-token=...` link to create the admin.
+4. **Enable HTTPS**: in the site's **Settings → HTTPS**, apply for or pick a certificate and enable HTTPS (certificates can be requested under **Websites → Certificates**). 1Panel's default proxy config already sets `X-Real-IP` from `$remote_addr`, so nothing else needs changing; if Cloudflare's CDN is also in front, set `TRUST_PROXY_HEADERS` in step 2 to `cloudflare`.
+5. **Create the admin**: open the logs of `subboost-app-1` from the container list, search for `setup-token`, and open the `https://sub.example.com/login#setup-token=...` link to create the admin.
 
 Run the `docker compose ...` commands in this README from the directory that holds the compose file. 1Panel stores stacks in `/opt/1panel/docker/compose/subboost/` by default (use your real path if you changed the data directory); `cd` there from 1Panel's **Terminal** first.
 

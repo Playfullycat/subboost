@@ -140,7 +140,7 @@ docker compose logs app | grep setup-token
 |---|---|---|
 | `APP_URL` | `http://localhost:3000` | 浏览器和客户端访问 SubBoost 的地址，用于生成订阅链接。使用 `https://` 时登录 Cookie 只会通过 HTTPS 发送。 |
 | `SUBBOOST_PORT` | `3000` | 服务器上对外暴露的端口。修改后记得同步修改 `APP_URL`。 |
-| `TRUST_PROXY_HEADERS` | `false` | 设为 `true` 时按反向代理传来的客户端 IP 限制登录频率。只有反向代理会覆盖 `X-Real-IP` 并清除 `CF-Connecting-IP` 时才能开启，见 [反向代理与 HTTPS](#反向代理与-https)。直接暴露端口时保持 `false`。 |
+| `TRUST_PROXY_HEADERS` | `false` | 按反向代理传来的客户端 IP 限制登录频率：放在反向代理之后设为 `true`；前面还有 Cloudflare CDN 时设为 `cloudflare`；直接暴露端口时保持 `false`。见 [反向代理与 HTTPS](#反向代理与-https)。 |
 | `SUBBOOST_IMAGE` | 发布版本对应的镜像 | 指定镜像，例如锁定版本 `ghcr.io/playfullycat/subboost:v2.14.0`。 |
 
 示例：
@@ -182,7 +182,6 @@ docker compose exec app cat /run/subboost/secrets/LOCAL_SETUP_TOKEN
 sub.example.com {
     reverse_proxy 127.0.0.1:3000 {
         header_up X-Real-IP {remote_host}
-        header_up -CF-Connecting-IP
     }
 }
 ```
@@ -201,7 +200,6 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $remote_addr;
         proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_set_header CF-Connecting-IP "";
     }
 }
 ```
@@ -213,7 +211,15 @@ APP_URL=https://sub.example.com
 TRUST_PROXY_HEADERS=true
 ```
 
-关于 `TRUST_PROXY_HEADERS`：SubBoost 依次从 `CF-Connecting-IP`、`X-Real-IP`、`X-Forwarded-For` 读取客户端 IP，用来按 IP 限制登录尝试次数。开启前，反向代理必须**用真实连接地址覆盖 `X-Real-IP`，并清除客户端自带的 `CF-Connecting-IP`**（上面示例中的写法），否则攻击者可以伪造 IP 绕过按 IP 的限制。做不到时保持 `false` 即可，同一用户名 15 分钟最多 8 次的限制始终有效。如果前面还有 Cloudflare CDN（橙色云朵），不要清除 `CF-Connecting-IP`，并只允许 Cloudflare 的 IP 访问源站。
+关于 `TRUST_PROXY_HEADERS`，它决定按 IP 限制登录尝试次数时如何获取客户端 IP：
+
+| 取值 | 使用的请求头 | 适用场景 |
+|---|---|---|
+| `false`（默认） | 不信任任何请求头，只按用户名限制（15 分钟 8 次） | 直接暴露端口 |
+| `true` | `X-Real-IP`，没有时取 `X-Forwarded-For` 的**最后一项** | 一层反向代理（1Panel、宝塔、Nginx、Caddy 等） |
+| `cloudflare` | 优先 `CF-Connecting-IP`，其次同 `true` | 前面还有 Cloudflare CDN（橙色云朵） |
+
+`true` 只信任反向代理自己写入的值：反向代理需要用真实连接地址覆盖 `X-Real-IP`（Nginx 的 `$remote_addr`、Caddy 的 `{remote_host}`，如上例），客户端伪造的 `CF-Connecting-IP` 和 `X-Forwarded-For` 前几项都会被忽略。使用 `cloudflare` 时，请只允许 Cloudflare 的 IP 访问源站，否则 `CF-Connecting-IP` 可以被伪造。
 
 只想通过反向代理访问时，把 `docker-compose.yml` 中 `app` 的端口映射改成 `"127.0.0.1:3000:3000"`，避免端口直接暴露到公网。
 
@@ -234,15 +240,8 @@ TRUST_PROXY_HEADERS=true
 
    3000 端口被占用时，把 `${SUBBOOST_PORT:-3000}` 改成其他端口，例如 `${SUBBOOST_PORT:-3080}`，后面反向代理地址也同步修改。确认后等待编排启动，在「容器」列表中看到 `subboost-app-1` 正常运行。
 3. **创建反向代理网站**：进入「网站 → 创建网站 → 反向代理」，主域名填 `sub.example.com`，代理地址填 `http://127.0.0.1:3000`，创建。
-4. **开启 HTTPS**：在该网站的「设置 → HTTPS」中申请或选择证书并启用 HTTPS（证书可在「网站 → 证书」中申请）。
-5. **防止伪造 IP**：1Panel 默认的反代配置已经用 `$remote_addr` 设置 `X-Real-IP`，但会原样转发客户端自带的 `CF-Connecting-IP`。在该网站的反向代理配置（「设置 → 反向代理 → 源文」）的 `location` 中加一行：
-
-   ```nginx
-   proxy_set_header CF-Connecting-IP "";
-   ```
-
-   如果网站前面开了 Cloudflare CDN，跳过这一步。不想修改反代配置的话，把第 2 步的 `TRUST_PROXY_HEADERS` 改回 `false` 即可。
-6. **创建管理员**：在「容器」列表中打开 `subboost-app-1` 的日志，搜索 `setup-token`，打开 `https://sub.example.com/login#setup-token=...` 链接创建管理员。
+4. **开启 HTTPS**：在该网站的「设置 → HTTPS」中申请或选择证书并启用 HTTPS（证书可在「网站 → 证书」中申请）。1Panel 默认的反代配置已经用 `$remote_addr` 设置 `X-Real-IP`，不需要再修改；如果网站前面还开了 Cloudflare CDN，把第 2 步的 `TRUST_PROXY_HEADERS` 改成 `cloudflare`。
+5. **创建管理员**：在「容器」列表中打开 `subboost-app-1` 的日志，搜索 `setup-token`，打开 `https://sub.example.com/login#setup-token=...` 链接创建管理员。
 
 本 README 中的 `docker compose ...` 命令需要在编排文件所在目录执行。1Panel 默认把编排保存在 `/opt/1panel/docker/compose/subboost/`（数据目录改过时以实际路径为准），可以在 1Panel 的「终端」中 `cd` 到该目录后执行。
 

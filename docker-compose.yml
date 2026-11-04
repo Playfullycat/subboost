@@ -65,7 +65,8 @@ services:
     environment:
       # 浏览器访问 SubBoost 的地址，例如 http://1.2.3.4:3000 或 https://sub.example.com
       APP_URL: ${APP_URL:-http://localhost:3000}
-      # 只有反向代理会清洗并重写 X-Forwarded-For / X-Real-IP 时才设为 true。
+      # 放在反向代理之后时设为 true（信任代理写入的 X-Real-IP / X-Forwarded-For 最后一项）；
+      # 前面还有 Cloudflare CDN 时设为 cloudflare；直接暴露端口时保持 false。
       TRUST_PROXY_HEADERS: ${TRUST_PROXY_HEADERS:-false}
       POSTGRES_DB: subboost
       POSTGRES_USER: subboost

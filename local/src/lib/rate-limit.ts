@@ -76,11 +76,15 @@ export function getTrustedClientRateLimitKey(request: Request): string | null {
   if (typeof runtimeIp === "string" && runtimeIp.trim()) {
     return hashLocalRateLimitKey(runtimeIp.trim());
   }
-  if (process.env.TRUST_PROXY_HEADERS !== "true") return null;
+  const mode = process.env.TRUST_PROXY_HEADERS?.trim().toLowerCase();
+  if (mode !== "true" && mode !== "cloudflare") return null;
 
-  const forwarded = request.headers.get("cf-connecting-ip")
+  // 只信任反向代理自己写入的值：X-Real-IP 由代理用 $remote_addr 覆盖；X-Forwarded-For 取最后一项
+  // （最近一层代理追加的连接地址），第一项可以被客户端伪造。CF-Connecting-IP 只在 cloudflare 模式下信任，
+  // 否则客户端自带的该请求头会被直接转发过来，用来绕过按 IP 的限流。
+  const forwarded = (mode === "cloudflare" ? request.headers.get("cf-connecting-ip") : null)
     || request.headers.get("x-real-ip")
-    || request.headers.get("x-forwarded-for")?.split(",")[0]
+    || request.headers.get("x-forwarded-for")?.split(",").at(-1)
     || "";
   const normalized = forwarded.trim();
   return normalized ? hashLocalRateLimitKey(normalized) : null;
