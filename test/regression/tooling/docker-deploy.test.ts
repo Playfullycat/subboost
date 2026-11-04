@@ -8,7 +8,14 @@ import { afterEach, describe, expect, it } from "vitest";
 const root = path.resolve(__dirname, "../../..");
 const initScript = path.join(root, "local/docker/init-secrets.sh");
 const entrypoint = path.join(root, "local/docker/entrypoint.sh");
-const SECRET_NAMES = ["CRON_SECRET", "ENCRYPTION_KEY", "JWT_SECRET", "LOCAL_SETUP_TOKEN", "POSTGRES_PASSWORD"];
+const SECRET_NAMES = [
+  "CRON_SECRET",
+  "ENCRYPTION_KEY",
+  "JWT_SECRET",
+  "LOCAL_SETUP_TOKEN",
+  "POSTGRES_PASSWORD",
+  "SUBBOOST_ADMIN_PASSWORD",
+];
 
 const tempDirs: string[] = [];
 
@@ -66,6 +73,7 @@ describe("docker init-secrets.sh", () => {
     for (const name of ["CRON_SECRET", "ENCRYPTION_KEY", "JWT_SECRET", "LOCAL_SETUP_TOKEN"]) {
       expect(readSecret(dir, name)).toMatch(/^[0-9a-f]{64}$/);
     }
+    expect(readSecret(dir, "SUBBOOST_ADMIN_PASSWORD")).toMatch(/^[0-9a-f]{24}$/);
     expect(readSecret(dir, "JWT_SECRET")).not.toBe(readSecret(dir, "ENCRYPTION_KEY"));
 
     const before = Object.fromEntries(SECRET_NAMES.map((name) => [name, readSecret(dir, name)]));
@@ -85,7 +93,7 @@ describe("docker init-secrets.sh", () => {
 });
 
 describe("docker entrypoint.sh", () => {
-  it("exports secrets, builds an encoded DATABASE_URL and prints the setup link", () => {
+  it("exports secrets, builds an encoded DATABASE_URL and loads the generated admin password", () => {
     const dir = makeSecretsDir();
     runInit(dir, { POSTGRES_PASSWORD: "p@ss/w:rd" });
     const { env, log } = runEntrypoint(dir, { APP_URL: "https://sub.example.com/" });
@@ -95,7 +103,17 @@ describe("docker entrypoint.sh", () => {
     expect(env.CRON_SECRET).toBe(readSecret(dir, "CRON_SECRET"));
     expect(env.DATABASE_URL).toBe("postgresql://subboost:p%40ss%2Fw%3Ard@db:5432/subboost?schema=public");
     expect(env.POSTGRES_PASSWORD).toBeUndefined();
-    expect(log).toContain(`https://sub.example.com/login#setup-token=${readSecret(dir, "LOCAL_SETUP_TOKEN")}`);
+    expect(env.SUBBOOST_ADMIN_PASSWORD).toBe(readSecret(dir, "SUBBOOST_ADMIN_PASSWORD"));
+    expect(env.SUBBOOST_ADMIN_PASSWORD_SOURCE).toBe("generated");
+    expect(log).not.toContain(readSecret(dir, "SUBBOOST_ADMIN_PASSWORD"));
+  });
+
+  it("marks a compose-provided admin password so it is never echoed", () => {
+    const dir = makeSecretsDir();
+    runInit(dir);
+    const { env } = runEntrypoint(dir, { SUBBOOST_ADMIN_PASSWORD: "my-own-password" });
+    expect(env.SUBBOOST_ADMIN_PASSWORD).toBe("my-own-password");
+    expect(env.SUBBOOST_ADMIN_PASSWORD_SOURCE).toBe("environment");
   });
 
   it("prefers explicit environment values and stays quiet for the cron role", () => {
@@ -108,7 +126,8 @@ describe("docker entrypoint.sh", () => {
     });
     expect(env.ENCRYPTION_KEY).toBe("explicit-key");
     expect(env.DATABASE_URL).toBe("postgresql://u:p@elsewhere:5432/x");
-    expect(log).not.toContain("setup-token");
+    expect(env.SUBBOOST_ADMIN_PASSWORD).toBeUndefined();
+    expect(log).toBe("");
   });
 });
 

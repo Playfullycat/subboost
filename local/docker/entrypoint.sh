@@ -36,9 +36,17 @@ if [ -z "${DATABASE_URL:-}" ]; then
   unset POSTGRES_PASSWORD
 fi
 
-if [ "${SUBBOOST_ROLE:-app}" = "app" ] && [ -n "${LOCAL_SETUP_TOKEN:-}" ]; then
-  app_url="${APP_URL:-http://localhost:3000}"
-  echo "[subboost] 首次初始化链接（创建第一个管理员后失效）: ${app_url%/}/login#setup-token=${LOCAL_SETUP_TOKEN}"
+if [ "${SUBBOOST_ROLE:-app}" = "app" ]; then
+  # 首次启动自动创建管理员（见 src/lib/admin-bootstrap.ts）。记录密码来源：
+  # 只有自动生成的密码才会打印到日志，docker-compose 中填写的密码不会回显。
+  if [ -n "${SUBBOOST_ADMIN_PASSWORD:-}" ]; then
+    export SUBBOOST_ADMIN_PASSWORD_SOURCE=environment
+  else
+    load_secret SUBBOOST_ADMIN_PASSWORD
+    if [ -n "${SUBBOOST_ADMIN_PASSWORD:-}" ]; then export SUBBOOST_ADMIN_PASSWORD_SOURCE=generated; fi
+  fi
+else
+  unset SUBBOOST_ADMIN_PASSWORD
 fi
 
 exec "$@"

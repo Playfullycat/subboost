@@ -82,7 +82,7 @@ APP_URL=https://sub.example.com
 EOF
 ```
 
-`APP_URL` sets the address of subscription links and the setup link, and decides whether the login cookie is HTTPS-only. Pick the value that matches how you access it:
+`APP_URL` sets the address of subscription links and decides whether the login cookie is HTTPS-only. Pick the value that matches how you access it:
 
 | Access | `APP_URL` |
 |---|---|
@@ -98,6 +98,15 @@ Rules:
 - If it says `https://` but you open the site over `http://`, sign-in fails (the browser will not send the secure cookie).
 - After changing `APP_URL`, run `docker compose up -d`; the dashboard shows subscription links with the new address. Links already added to clients need to be copied again if the old address no longer works.
 
+**Optional: choose the admin credentials.** By default the username is `admin` and the password is generated (see the next step). To pick your own, add to `.env`:
+
+```bash
+SUBBOOST_ADMIN_USERNAME=admin
+SUBBOOST_ADMIN_PASSWORD=at-least-10-characters
+```
+
+They only apply on first start while no admin exists; changing them later does not touch the existing account (change the password in the dashboard instead).
+
 For 1Panel, see [Deploy with 1Panel](#deploy-with-1panel). See [Configuration](#configuration) for more options.
 
 ### 3. Start
@@ -108,23 +117,29 @@ docker compose up -d
 
 On first start:
 
-1. The `init` container generates the database password, `ENCRYPTION_KEY`, `JWT_SECRET`, `CRON_SECRET`, and the first-run setup token, stores them in the `subboost-secrets` volume, and exits (`Exited (0)` is expected).
+1. The `init` container generates the database password, `ENCRYPTION_KEY`, `JWT_SECRET`, `CRON_SECRET`, and the initial admin password, stores them in the `subboost-secrets` volume, and exits (`Exited (0)` is expected).
 2. `db` (PostgreSQL) initializes the database.
-3. `app` applies database migrations and starts the web server.
+3. `app` applies database migrations, creates the admin account, and starts the web server.
 4. `cron` checks subscriptions due for automatic refresh every 6 minutes and refreshes the rule catalog every hour.
 
 Run `docker compose ps`; once `app` shows `healthy`, it is ready.
 
-### 4. Create the admin
+### 4. Sign in
+
+The admin account is created for you. If you did not set a password, read the generated credentials:
 
 ```bash
-docker compose logs app | grep setup-token
+docker compose logs app | grep -E "Username|Password"
 ```
 
-Open the **first-run setup link** from the output (like `http://your-address/login#setup-token=...`) and choose an admin username and password (at least 10 characters). You are signed in right away, and the setup link stops working.
+The output looks like:
 
-> [!WARNING]
-> Until the admin exists, anyone with the setup link can create it. Finish this step right after deploying and do not share the link.
+```text
+app-1  | [subboost]   用户名 Username: admin
+app-1  | [subboost]   密码   Password: 3f9c2a7d41e85b06c9d2e1f4
+```
+
+Open `APP_URL` in the browser and sign in with them. **Changing the password afterwards under Settings → Change password is recommended.** If the logs are gone, see [Recover the initial password](#recover-the-initial-password). If you set your own credentials in `.env`, the password is not printed; just sign in with what you chose.
 
 ### 5. Start using it
 
@@ -141,6 +156,8 @@ Put settings in a `.env` file next to `docker-compose.yml` and run `docker compo
 | `APP_URL` | `http://localhost:3000` | The address browsers and clients use to reach SubBoost; used to build subscription links. With `https://`, the login cookie is only sent over HTTPS. |
 | `SUBBOOST_PORT` | `3000` | The port published on the server. Update `APP_URL` when you change it. |
 | `TRUST_PROXY_HEADERS` | `false` | Rate limit sign-in by the client IP the reverse proxy passes: `true` behind a reverse proxy, `cloudflare` when Cloudflare's CDN is also in front, `false` when the port is exposed directly. See [Reverse proxy and HTTPS](#reverse-proxy-and-https). |
+| `SUBBOOST_ADMIN_USERNAME` | `admin` | Username of the admin created on first start. |
+| `SUBBOOST_ADMIN_PASSWORD` | Generated | Password of the admin created on first start, at least 10 characters. Only applies while no admin exists; later changes do not affect the existing account. |
 | `SUBBOOST_IMAGE` | The release's image | Override the image, for example to pin `ghcr.io/playfullycat/subboost:v2.14.1`. |
 
 Example:
@@ -159,12 +176,13 @@ TRUST_PROXY_HEADERS=true
 | `ENCRYPTION_KEY` | Encrypts subscription links, nodes, and configs in the database |
 | `JWT_SECRET` | Signs login sessions |
 | `CRON_SECRET` | Lets scheduled jobs call internal endpoints |
-| `LOCAL_SETUP_TOKEN` | First-run admin setup token |
+| `SUBBOOST_ADMIN_PASSWORD` | Initial admin password (used unless you set your own in `.env`) |
+| `LOCAL_SETUP_TOKEN` | Fallback admin setup token (used if automatic admin creation fails) |
 
 They live in the `subboost-secrets` volume and are reused on every start, so you normally never touch them. To read one:
 
 ```bash
-docker compose exec app cat /run/subboost/secrets/LOCAL_SETUP_TOKEN
+docker compose exec app cat /run/subboost/secrets/SUBBOOST_ADMIN_PASSWORD
 ```
 
 A variable with the same name in `.env` takes precedence (mainly for migrating from the old installer).
@@ -228,7 +246,7 @@ To allow access only through the proxy, change the `app` port mapping in `docker
 [1Panel](https://1panel.pro/)'s OpenResty uses host networking, so its reverse proxy can reach `127.0.0.1:3000` directly. Using the domain `sub.example.com`:
 
 1. **Create the compose stack**: go to **Containers → Compose → Create** (`容器 → 编排 → 创建编排`), name it `subboost`, choose the editor mode, and paste the contents of [docker-compose.yml](./docker-compose.yml).
-2. **Edit two settings** directly in the editor:
+2. **Edit the settings** directly in the editor:
 
    ```yaml
        ports:
@@ -236,12 +254,14 @@ To allow access only through the proxy, change the `app` port mapping in `docker
        environment:
          APP_URL: ${APP_URL:-https://sub.example.com}  # your domain
          TRUST_PROXY_HEADERS: ${TRUST_PROXY_HEADERS:-true}
+         SUBBOOST_ADMIN_USERNAME: ${SUBBOOST_ADMIN_USERNAME:-admin}                   # optional
+         SUBBOOST_ADMIN_PASSWORD: ${SUBBOOST_ADMIN_PASSWORD:-at-least-10-characters}  # optional; empty = generated
    ```
 
    If port 3000 is taken, change `${SUBBOOST_PORT:-3000}` to another port such as `${SUBBOOST_PORT:-3080}` and use it in the proxy address below. Confirm and wait until `subboost-app-1` is running in the container list.
 3. **Create the reverse proxy site**: go to **Websites → Create → Reverse proxy** (`网站 → 创建网站 → 反向代理`), set the primary domain to `sub.example.com` and the proxy address to `http://127.0.0.1:3000`, and create it.
 4. **Enable HTTPS**: in the site's **Settings → HTTPS**, apply for or pick a certificate and enable HTTPS (certificates can be requested under **Websites → Certificates**). 1Panel's default proxy config already sets `X-Real-IP` from `$remote_addr`, so nothing else needs changing; if Cloudflare's CDN is also in front, set `TRUST_PROXY_HEADERS` in step 2 to `cloudflare`.
-5. **Create the admin**: open the logs of `subboost-app-1` from the container list, search for `setup-token`, and open the `https://sub.example.com/login#setup-token=...` link to create the admin.
+5. **Sign in**: open `https://sub.example.com` and sign in with the credentials from step 2. If you left the password empty, open the logs of `subboost-app-1` from the container list and search for `Password` to see the generated one.
 
 Run the `docker compose ...` commands in this README from the directory that holds the compose file. 1Panel stores stacks in `/opt/1panel/docker/compose/subboost/` by default (use your real path if you changed the data directory); `cd` there from 1Panel's **Terminal** first.
 
@@ -255,18 +275,22 @@ docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
 
 ## Admin Account
 
-SubBoost has a single admin account, created through the setup link on first visit (see [Create the admin](#4-create-the-admin)). Run the commands below in the directory that contains `docker-compose.yml`.
+SubBoost has a single admin account, created automatically on first start (see [Sign in](#4-sign-in)). Run the commands below in the directory that contains `docker-compose.yml`.
 
-### Lost the setup link
+### Recover the initial password
+
+If you did not set your own password, the generated initial password can be read at any time (after you change the password, this file still holds the old initial one):
+
+```bash
+docker compose exec -T app cat /run/subboost/secrets/SUBBOOST_ADMIN_PASSWORD
+```
+
+### If automatic creation fails
+
+If your `SUBBOOST_ADMIN_PASSWORD` does not meet the rules (fewer than 10 characters), no admin is created and the log explains why and prints a fallback setup link. Fix the password and run `docker compose up -d` to try again, or open the link from the log to create the admin by hand:
 
 ```bash
 docker compose logs app | grep setup-token
-```
-
-If the logs are gone, read the token and append it to your address: `<APP_URL>/login#setup-token=<token>`.
-
-```bash
-docker compose exec -T app cat /run/subboost/secrets/LOCAL_SETUP_TOKEN
 ```
 
 ### Change the password

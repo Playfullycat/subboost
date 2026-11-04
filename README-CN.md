@@ -82,7 +82,7 @@ APP_URL=https://sub.example.com
 EOF
 ```
 
-`APP_URL` 决定订阅链接和初始化链接的地址，也决定登录 Cookie 是否只走 HTTPS。按你的访问方式填写：
+`APP_URL` 决定订阅链接的地址，也决定登录 Cookie 是否只走 HTTPS。按你的访问方式填写：
 
 | 访问方式 | `APP_URL` 写法 |
 |---|---|
@@ -98,6 +98,15 @@ EOF
 - 写成 `https://` 却用 `http://` 访问，登录会失败（浏览器不会发送安全 Cookie）。
 - 以后修改 `APP_URL` 后执行 `docker compose up -d` 生效，后台显示的订阅链接会自动换成新地址；已经添加到客户端的旧链接，旧地址不能访问时需要重新复制。
 
+**可选：自定义管理员账号密码**。不设置时用户名为 `admin`、密码自动生成（见下一步）；想自己指定的话，在 `.env` 中加上：
+
+```bash
+SUBBOOST_ADMIN_USERNAME=admin
+SUBBOOST_ADMIN_PASSWORD=至少10位的密码
+```
+
+只在第一次启动、还没有管理员时生效，之后修改这两项不会改动已有账号（改密码请在后台操作）。
+
 使用 1Panel 部署请看 [使用 1Panel 部署](#使用-1panel-部署)。更多选项见 [配置说明](#配置说明)。
 
 ### 3. 启动
@@ -108,23 +117,29 @@ docker compose up -d
 
 第一次启动时会自动完成：
 
-1. `init` 容器生成数据库密码、`ENCRYPTION_KEY`、`JWT_SECRET`、`CRON_SECRET` 和首次管理员初始化令牌，保存到 `subboost-secrets` 数据卷，然后退出（状态显示 `Exited (0)` 属于正常）。
+1. `init` 容器生成数据库密码、`ENCRYPTION_KEY`、`JWT_SECRET`、`CRON_SECRET` 和管理员初始密码，保存到 `subboost-secrets` 数据卷，然后退出（状态显示 `Exited (0)` 属于正常）。
 2. `db`（PostgreSQL）初始化数据库。
-3. `app` 执行数据库迁移并启动网页服务。
+3. `app` 执行数据库迁移、自动创建管理员账号，并启动网页服务。
 4. `cron` 每 6 分钟检查一次需要自动更新的订阅，并每小时刷新一次规则库索引。
 
 用 `docker compose ps` 查看状态，`app` 显示 `healthy` 即启动完成。
 
-### 4. 创建管理员
+### 4. 登录
+
+管理员账号已经自动创建好。没有自定义密码时，查看自动生成的账号密码：
 
 ```bash
-docker compose logs app | grep setup-token
+docker compose logs app | grep -E "Username|Password"
 ```
 
-在浏览器打开输出中的 **首次初始化链接**（形如 `http://你的地址/login#setup-token=...`），设置管理员用户名和密码（密码至少 10 位）。创建成功后会自动登录，初始化链接随即失效。
+输出类似：
 
-> [!WARNING]
-> 在创建管理员之前，任何拿到初始化链接的人都可以抢先创建管理员。请部署后尽快完成这一步，不要把链接发给别人。
+```text
+app-1  | [subboost]   用户名 Username: admin
+app-1  | [subboost]   密码   Password: 3f9c2a7d41e85b06c9d2e1f4
+```
+
+在浏览器打开 `APP_URL` 用这组账号密码登录，**登录后建议在「账户设置 → 修改密码」中换成自己的密码**。日志被清理后也能找回初始密码，见 [找回初始密码](#找回初始密码)。在 `.env` 中自定义了账号密码时，日志里不会打印密码，直接用你设置的账号密码登录即可。
 
 ### 5. 开始使用
 
@@ -141,6 +156,8 @@ docker compose logs app | grep setup-token
 | `APP_URL` | `http://localhost:3000` | 浏览器和客户端访问 SubBoost 的地址，用于生成订阅链接。使用 `https://` 时登录 Cookie 只会通过 HTTPS 发送。 |
 | `SUBBOOST_PORT` | `3000` | 服务器上对外暴露的端口。修改后记得同步修改 `APP_URL`。 |
 | `TRUST_PROXY_HEADERS` | `false` | 按反向代理传来的客户端 IP 限制登录频率：放在反向代理之后设为 `true`；前面还有 Cloudflare CDN 时设为 `cloudflare`；直接暴露端口时保持 `false`。见 [反向代理与 HTTPS](#反向代理与-https)。 |
+| `SUBBOOST_ADMIN_USERNAME` | `admin` | 首次启动时自动创建的管理员用户名。 |
+| `SUBBOOST_ADMIN_PASSWORD` | 自动生成 | 首次启动时自动创建的管理员密码，至少 10 位。只在还没有管理员时生效，之后修改不会影响已有账号。 |
 | `SUBBOOST_IMAGE` | 发布版本对应的镜像 | 指定镜像，例如锁定版本 `ghcr.io/playfullycat/subboost:v2.14.1`。 |
 
 示例：
@@ -159,12 +176,13 @@ TRUST_PROXY_HEADERS=true
 | `ENCRYPTION_KEY` | 加密数据库中的订阅链接、节点和配置 |
 | `JWT_SECRET` | 签发登录会话 |
 | `CRON_SECRET` | 定时任务调用内部接口的凭证 |
-| `LOCAL_SETUP_TOKEN` | 首次创建管理员的初始化令牌 |
+| `SUBBOOST_ADMIN_PASSWORD` | 管理员初始密码（没有在 `.env` 中自定义时使用） |
+| `LOCAL_SETUP_TOKEN` | 备用的管理员初始化令牌（自动创建管理员失败时使用） |
 
 它们保存在 `subboost-secrets` 数据卷中，之后每次启动都会沿用，一般不需要关心。如需查看某一项：
 
 ```bash
-docker compose exec app cat /run/subboost/secrets/LOCAL_SETUP_TOKEN
+docker compose exec app cat /run/subboost/secrets/SUBBOOST_ADMIN_PASSWORD
 ```
 
 如果在 `.env` 中写了同名变量，会优先使用 `.env` 中的值（主要用于从旧版迁移）。
@@ -228,7 +246,7 @@ TRUST_PROXY_HEADERS=true
 [1Panel](https://1panel.cn/) 的 OpenResty 使用主机网络，反向代理可以直接访问 `127.0.0.1:3000`。以域名 `sub.example.com` 为例：
 
 1. **创建编排**：进入「容器 → 编排 → 创建编排」，名称填 `subboost`，选择编辑模式，把 [docker-compose.yml](./docker-compose.yml) 的内容粘贴进去。
-2. **修改两处配置**（直接在编辑框里改）：
+2. **修改配置**（直接在编辑框里改）：
 
    ```yaml
        ports:
@@ -236,12 +254,14 @@ TRUST_PROXY_HEADERS=true
        environment:
          APP_URL: ${APP_URL:-https://sub.example.com}  # 改成你的域名
          TRUST_PROXY_HEADERS: ${TRUST_PROXY_HEADERS:-true}
+         SUBBOOST_ADMIN_USERNAME: ${SUBBOOST_ADMIN_USERNAME:-admin}           # 可选：管理员用户名
+         SUBBOOST_ADMIN_PASSWORD: ${SUBBOOST_ADMIN_PASSWORD:-至少10位的密码}  # 可选：留空则自动生成
    ```
 
    3000 端口被占用时，把 `${SUBBOOST_PORT:-3000}` 改成其他端口，例如 `${SUBBOOST_PORT:-3080}`，后面反向代理地址也同步修改。确认后等待编排启动，在「容器」列表中看到 `subboost-app-1` 正常运行。
 3. **创建反向代理网站**：进入「网站 → 创建网站 → 反向代理」，主域名填 `sub.example.com`，代理地址填 `http://127.0.0.1:3000`，创建。
 4. **开启 HTTPS**：在该网站的「设置 → HTTPS」中申请或选择证书并启用 HTTPS（证书可在「网站 → 证书」中申请）。1Panel 默认的反代配置已经用 `$remote_addr` 设置 `X-Real-IP`，不需要再修改；如果网站前面还开了 Cloudflare CDN，把第 2 步的 `TRUST_PROXY_HEADERS` 改成 `cloudflare`。
-5. **创建管理员**：在「容器」列表中打开 `subboost-app-1` 的日志，搜索 `setup-token`，打开 `https://sub.example.com/login#setup-token=...` 链接创建管理员。
+5. **登录**：打开 `https://sub.example.com`，用第 2 步设置的账号密码登录。没有设置密码时，在「容器」列表中打开 `subboost-app-1` 的日志，搜索 `Password` 查看自动生成的密码。
 
 本 README 中的 `docker compose ...` 命令需要在编排文件所在目录执行。1Panel 默认把编排保存在 `/opt/1panel/docker/compose/subboost/`（数据目录改过时以实际路径为准），可以在 1Panel 的「终端」中 `cd` 到该目录后执行。
 
@@ -255,18 +275,22 @@ docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
 
 ## 管理员账号
 
-SubBoost 只有一个管理员账号，第一次访问时通过初始化链接创建（见 [创建管理员](#4-创建管理员)）。以下命令都在 `docker-compose.yml` 所在目录执行。
+SubBoost 只有一个管理员账号，第一次启动时自动创建（见 [登录](#4-登录)）。以下命令都在 `docker-compose.yml` 所在目录执行。
 
-### 找不到初始化链接
+### 找回初始密码
+
+没有自定义密码时，自动生成的初始密码可以随时查看（修改过密码后这里仍是旧的初始密码，以修改后的为准）：
+
+```bash
+docker compose exec -T app cat /run/subboost/secrets/SUBBOOST_ADMIN_PASSWORD
+```
+
+### 自动创建失败时
+
+如果自定义的 `SUBBOOST_ADMIN_PASSWORD` 不符合要求（少于 10 位），不会自动创建管理员，日志中会给出原因和一条备用的初始化链接。可以修改密码后执行 `docker compose up -d` 重新创建，也可以打开日志中的链接手动创建：
 
 ```bash
 docker compose logs app | grep setup-token
-```
-
-如果日志已被清理，可以直接读取令牌，把它拼到你的访问地址后面：`<APP_URL>/login#setup-token=<令牌>`。
-
-```bash
-docker compose exec -T app cat /run/subboost/secrets/LOCAL_SETUP_TOKEN
 ```
 
 ### 修改密码

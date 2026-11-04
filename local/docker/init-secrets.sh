@@ -53,5 +53,7 @@ ensure_secret ENCRYPTION_KEY 32 "$APP_UID:$APP_GID" 0400
 ensure_secret JWT_SECRET 32 "$APP_UID:$APP_GID" 0400
 ensure_secret CRON_SECRET 32 "$APP_UID:$APP_GID" 0400
 ensure_secret LOCAL_SETUP_TOKEN 32 "$APP_UID:$APP_GID" 0400
+# 首次启动自动创建管理员时使用的初始密码；在 docker-compose 中设置 SUBBOOST_ADMIN_PASSWORD 可自定义。
+ensure_secret SUBBOOST_ADMIN_PASSWORD 12 "$APP_UID:$APP_GID" 0400
 
 echo "[subboost-init] secrets ready in $SECRETS_DIR"
