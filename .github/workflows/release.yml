@@ -188,11 +188,13 @@ jobs:
         env:
           IMAGE_DIGEST: ${{ steps.image_manifest.outputs.digest }}
           IMAGE_NAME: ${{ needs.meta.outputs.image_name }}
+          # Registry mirror that users in mainland China pull through; set it to empty to pin ghcr.io directly.
+          IMAGE_MIRROR: hub.1991029.xyz
         run: |
           set -euo pipefail
           mkdir -p dist/release-assets
-          # Pin the release compose file to this release's image digest.
-          pinned_image="${IMAGE_NAME}:${GITHUB_REF_NAME}@${IMAGE_DIGEST}"
+          # Pin the release compose file to this release's image digest (served unchanged by the mirror).
+          pinned_image="${IMAGE_MIRROR:+${IMAGE_MIRROR}/}${IMAGE_NAME}:${GITHUB_REF_NAME}@${IMAGE_DIGEST}"
           sed "s#^x-subboost-image:.*#x-subboost-image: \&subboost-image \${SUBBOOST_IMAGE:-${pinned_image}}#" \
             docker-compose.yml > dist/release-assets/docker-compose.yml
           grep -Fqx "x-subboost-image: &subboost-image \${SUBBOOST_IMAGE:-${pinned_image}}" dist/release-assets/docker-compose.yml

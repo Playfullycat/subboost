@@ -1,23 +1,51 @@
-# SubBoost v2.15.1
+# SubBoost v2.16.0
 
 基于上游 [SubBoost/subboost](https://github.com/SubBoost/subboost) v2.11.0 的分支版本。
 
 ## 中文
 
-### 修复：在 docker-compose 中设置管理员密码后无法登录
+### 镜像默认通过镜像站拉取
 
-- 每次启动都会检查管理员账号并打印到 `docker compose logs app`：新建时打印用户名和实际生效的密码（自动生成或在 docker-compose 中设置的都会打印）；已有管理员且与配置一致时再次打印；与配置不一致时说明原因和处理方法，不再静默跳过。
-- 新增 `SUBBOOST_ADMIN_RESET=true`：启动时把已有管理员重置为 docker-compose 中的账号密码，并让所有设备重新登录；登录成功后改回 `false`。
-- 文档说明密码中特殊字符的写法：`$` 会被 docker compose 当成变量替换，在 `.env` 中用单引号包住整个密码，或在 docker-compose.yml 中把 `$` 写成 `$$`；含 `#` 或空格时给整个值加双引号。README 新增「登录不上」排查表。
+- `docker-compose.yml` 中的 SubBoost 和 PostgreSQL 镜像默认改为通过 `hub.1991029.xyz` 镜像站拉取，国内服务器无需配置 Docker 加速即可部署：
+  - `hub.1991029.xyz/ghcr.io/playfullycat/subboost`
+  - `hub.1991029.xyz/library/postgres:16-alpine`（与 `postgres:16-alpine` 是同一个镜像，切换不影响数据）
+- 发布附件中锁定版本的 `docker-compose.yml` 同样通过镜像站按摘要拉取。
+- 服务器能直连 ghcr.io 和 Docker Hub 时，可在 `.env` 中通过 `SUBBOOST_IMAGE` 和新增的 `POSTGRES_IMAGE` 改回官方地址。
 
-升级提示：执行 `docker compose pull && docker compose up -d` 即可。之前因密码被替换而无法登录的部署，在 `.env` 中设置正确的 `SUBBOOST_ADMIN_PASSWORD` 和 `SUBBOOST_ADMIN_RESET=true` 后执行 `docker compose up -d`，登录成功后再把 `SUBBOOST_ADMIN_RESET` 改回 `false`。
+### 添加到桌面
+
+- 修正 PWA 图标：新增 192、512 和 maskable 图标，以及 iPhone 专用图标。
+- Chrome、Edge 和安卓浏览器中会弹出「添加 SubBoost 到桌面」，点「安装」即可；iPhone / iPad 会提示通过「分享 → 添加到主屏幕」添加。关闭后 30 天内不再提示。
+- 安装弹窗需要通过 HTTPS 访问才会出现；通过 `http://IP:端口` 访问时仍可在浏览器菜单中手动添加。
+
+### 镜像体积减半
+
+- 运行镜像只保留 Next.js standalone 输出，数据库迁移用的 Prisma 命令行单独安装在 `/opt/prisma`，不再复制完整的 `node_modules`（含构建工具）。
+- 解压后从 1.32GB 降到 683MB，下载大小从约 267MB 降到约 147MB。
+- README「忘记密码」统一使用 `SUBBOOST_ADMIN_RESET`，移除了在容器内手动生成密码哈希的命令（新镜像中不再可用）。
+
+升级提示：执行 `docker compose pull && docker compose up -d` 即可，数据不受影响。使用自己维护的 `docker-compose.yml` 时，镜像地址不会自动改变；需要镜像站时，把 `image` 改成上面的地址，或在 `.env` 中设置 `SUBBOOST_IMAGE` 和 `POSTGRES_IMAGE`。
 
 ## English
 
-### Fix: cannot sign in after setting the admin password in docker-compose
+### Images pulled through a registry mirror by default
 
-- Every start checks the admin account and reports it in `docker compose logs app`: creation prints the username and the password actually in effect (generated or from docker-compose); an existing admin that still matches the configuration is printed again; a mismatch explains why and how to fix it instead of being skipped silently.
-- New `SUBBOOST_ADMIN_RESET=true`: on start, resets the existing admin to the docker-compose credentials and signs out every device; set it back to `false` after signing in.
-- Documented special characters in passwords: docker compose substitutes `$` as a variable, so wrap the whole password in single quotes in `.env`, or write `$` as `$$` in docker-compose.yml; wrap values containing `#` or spaces in double quotes. The README gains a "Cannot sign in" troubleshooting table.
+- The SubBoost and PostgreSQL images in `docker-compose.yml` now pull through the `hub.1991029.xyz` mirror by default, so servers in mainland China can deploy without a Docker mirror:
+  - `hub.1991029.xyz/ghcr.io/playfullycat/subboost`
+  - `hub.1991029.xyz/library/postgres:16-alpine` (the same image as `postgres:16-alpine`; switching keeps your data)
+- The pinned `docker-compose.yml` attached to releases also pulls by digest through the mirror.
+- If your server reaches ghcr.io and Docker Hub directly, switch back to the official names with `SUBBOOST_IMAGE` and the new `POSTGRES_IMAGE` in `.env`.
 
-Upgrade note: run `docker compose pull && docker compose up -d`. Deployments that could not sign in because the password was substituted can set the correct `SUBBOOST_ADMIN_PASSWORD` plus `SUBBOOST_ADMIN_RESET=true` in `.env`, run `docker compose up -d`, and set `SUBBOOST_ADMIN_RESET` back to `false` after signing in.
+### Add to Home Screen
+
+- Fixed the PWA icons: added 192, 512 and maskable icons, plus an iPhone icon.
+- Chrome, Edge and Android browsers show an "Add SubBoost to desktop" card with an Install button; iPhone and iPad show how to use Share → Add to Home Screen. After closing, it stays hidden for 30 days.
+- The install dialog only appears over HTTPS; over `http://IP:port` you can still add a shortcut from the browser menu.
+
+### Half-size image
+
+- The runtime image keeps only the Next.js standalone output, with the Prisma CLI for database migrations installed separately in `/opt/prisma`, instead of copying the full `node_modules` (including build tools).
+- Uncompressed size drops from 1.32GB to 683MB; the download drops from about 267MB to about 147MB.
+- "Forgot the password" in the README now uses `SUBBOOST_ADMIN_RESET` only; the command that hashed a password inside the container is gone (it no longer works in the new image).
+
+Upgrade note: run `docker compose pull && docker compose up -d`; your data is unaffected. If you maintain your own `docker-compose.yml`, the image names don't change automatically; to use the mirror, set `image` to the names above, or set `SUBBOOST_IMAGE` and `POSTGRES_IMAGE` in `.env`.

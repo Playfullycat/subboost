@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   createSubBoostManifest,
+  SUBBOOST_APPLE_ICON_PATH,
   SUBBOOST_FAVICON_PATH,
   SUBBOOST_FOOTER_DESCRIPTION,
   SUBBOOST_ICON_PATH,
@@ -21,33 +22,27 @@ describe("SubBoost brand constants", () => {
     expect(SUBBOOST_THEME_COLOR).toMatch(/^#[0-9a-f]{6}$/i);
     expect(SUBBOOST_ICON_PATH).toBe("/icon.png");
     expect(SUBBOOST_FAVICON_PATH).toBe("/favicon.ico");
+    expect(SUBBOOST_APPLE_ICON_PATH).toBe("/icons/apple-touch-icon.png");
     expect(SUBBOOST_KEYWORDS).toContain("订阅转换");
     expect(SUBBOOST_MANIFEST_CATEGORIES).toEqual(["utilities", "productivity"]);
   });
 
   it("builds the shared app manifest", () => {
     expect(createSubBoostManifest()).toEqual({
+      id: "/",
       name: SUBBOOST_PRODUCT_TITLE,
       short_name: SUBBOOST_SITE_NAME,
       description: SUBBOOST_PRODUCT_DESCRIPTION,
       start_url: "/",
+      scope: "/",
       display: "standalone",
       background_color: "#0f0d1a",
       theme_color: SUBBOOST_THEME_COLOR,
-      orientation: "portrait-primary",
+      orientation: "any",
       icons: [
-        {
-          src: SUBBOOST_ICON_PATH,
-          sizes: "512x512",
-          type: "image/png",
-          purpose: "any",
-        },
-        {
-          src: SUBBOOST_ICON_PATH,
-          sizes: "512x512",
-          type: "image/png",
-          purpose: "maskable",
-        },
+        { src: "/icons/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
+        { src: "/icons/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
+        { src: "/icons/maskable-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
       ],
       categories: ["utilities", "productivity"],
       lang: "zh-CN",

@@ -9,7 +9,11 @@
 
 name: subboost
 
-x-subboost-image: &subboost-image ${SUBBOOST_IMAGE:-ghcr.io/playfullycat/subboost:latest}
+# 镜像默认通过 hub.1991029.xyz 镜像站拉取（国内服务器无法直连 ghcr.io / Docker Hub）。
+# 服务器能直连时，可在 .env 中改用官方地址：
+#   SUBBOOST_IMAGE=ghcr.io/playfullycat/subboost:latest
+#   POSTGRES_IMAGE=postgres:16-alpine
+x-subboost-image: &subboost-image ${SUBBOOST_IMAGE:-hub.1991029.xyz/ghcr.io/playfullycat/subboost:latest}
 
 x-secrets-volume: &secrets-volume
   type: volume
@@ -34,7 +38,7 @@ services:
       - subboost-secrets:/run/subboost/secrets
 
   db:
-    image: postgres:16-alpine
+    image: ${POSTGRES_IMAGE:-hub.1991029.xyz/library/postgres:16-alpine}
     restart: unless-stopped
     depends_on:
       init:

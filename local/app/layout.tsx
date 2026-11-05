@@ -6,9 +6,11 @@ import { ScrollLockStabilizer } from "@subboost/ui/components/layout/scroll-lock
 import { ConfirmDialogHost } from "@subboost/ui/components/ui/confirm-dialog";
 import { Toaster } from "@subboost/ui/components/ui/toaster";
 import { THEME_INIT_SCRIPT } from "@subboost/ui/theme/theme-init-script";
+import { InstallPrompt } from "@local/components/install-prompt";
 import { LocalHeader } from "@local/components/local-header";
 import { resolveAppVersionInfo } from "@subboost/server-core/app-version";
 import {
+  SUBBOOST_APPLE_ICON_PATH,
   SUBBOOST_FAVICON_PATH,
   SUBBOOST_ICON_PATH,
   SUBBOOST_KEYWORDS,
@@ -31,7 +33,13 @@ export const metadata: Metadata = {
   icons: {
     icon: SUBBOOST_ICON_PATH,
     shortcut: SUBBOOST_FAVICON_PATH,
-    apple: SUBBOOST_ICON_PATH,
+    apple: SUBBOOST_APPLE_ICON_PATH,
+  },
+  // iOS「添加到主屏幕」后以独立窗口打开，并显示为 SubBoost。
+  appleWebApp: {
+    capable: true,
+    title: SUBBOOST_SITE_NAME,
+    statusBarStyle: "black",
   },
 };
 
@@ -55,6 +63,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <Footer mode="local" buildVersion={buildVersion} />
           <MobileNav mode="local" />
         </div>
+        <InstallPrompt />
         <Toaster />
         <ConfirmDialogHost />
       </body>

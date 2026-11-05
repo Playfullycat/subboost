@@ -47,8 +47,20 @@ COPY local local
 WORKDIR /package/local
 RUN npm run build
 
-FROM deps AS production-deps
-RUN npm prune --omit=dev
+# 运行时只需要 Next.js standalone 输出（已按需裁剪依赖）。启动时执行数据库迁移用的 Prisma 命令行
+# 单独安装在 /opt/prisma，版本与 package-lock.json 一致，避免把完整的 node_modules（含构建工具）打进镜像。
+FROM node:24.22.1-alpine AS prisma-cli
+WORKDIR /opt/prisma
+COPY package-lock.json /tmp/package-lock.json
+RUN --mount=type=cache,target=/root/.npm,sharing=locked \
+    set -eu; \
+    version="$(node -p "require('/tmp/package-lock.json').packages['node_modules/prisma'].version")"; \
+    # 与根目录 package.json 一样允许 Prisma 的安装脚本，构建时就下载好迁移引擎，运行时无需联网。
+    printf '{"private":true,"allowScripts":{"prisma@%s":true,"@prisma/engines@%s":true}}\n' "$version" "$version" > package.json; \
+    npm install --omit=dev --no-audit --no-fund --no-package-lock "prisma@${version}"; \
+    test -n "$(find node_modules/@prisma/engines -maxdepth 1 -name 'schema-engine-*' -type f)"; \
+    node_modules/.bin/prisma --version; \
+    rm /tmp/package-lock.json
 
 FROM node:24.22.1-alpine AS runner
 WORKDIR /app
@@ -66,10 +78,10 @@ ENV APP_VERSION_TOKEN=${APP_VERSION_TOKEN}
 RUN apk add --no-cache openssl
 
 COPY --chown=node:node --from=builder /package/local/.next/standalone ./
-COPY --chown=node:node --from=production-deps /package/node_modules ./node_modules
+COPY --from=prisma-cli /opt/prisma /opt/prisma
+COPY local/docker/prisma-cli.config.mjs /opt/prisma/prisma.config.mjs
 COPY --chown=node:node --from=builder /package/local/.next/static local/.next/static
 COPY --chown=node:node --from=builder /package/local/public local/public
-COPY --chown=node:node --from=builder /package/local/prisma.config.ts local/prisma.config.ts
 COPY --chown=node:node --from=builder /package/local/prisma local/prisma
 COPY --chown=node:node --chmod=0755 local/docker local/docker
 
@@ -77,4 +89,4 @@ WORKDIR /app/local
 USER node
 EXPOSE 3000
 ENTRYPOINT ["/app/local/docker/entrypoint.sh"]
-CMD ["sh", "-c", "../node_modules/.bin/prisma migrate deploy --schema prisma/schema.prisma && node server.js"]
+CMD ["sh", "-c", "/opt/prisma/node_modules/.bin/prisma migrate deploy --config /opt/prisma/prisma.config.mjs && node server.js"]

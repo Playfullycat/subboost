@@ -159,10 +159,14 @@ describe("docker-compose.yml", () => {
   });
 
   it("keeps the image line the release workflow rewrites", () => {
-    expect(source).toMatch(/^x-subboost-image: &subboost-image \$\{SUBBOOST_IMAGE:-ghcr\.io\/[^/]+\/subboost:latest\}$/m);
+    expect(source).toMatch(
+      /^x-subboost-image: &subboost-image \$\{SUBBOOST_IMAGE:-hub\.1991029\.xyz\/ghcr\.io\/[^/]+\/subboost:latest\}$/m
+    );
+    expect(compose.services.db.image).toBe("${POSTGRES_IMAGE:-hub.1991029.xyz/library/postgres:16-alpine}");
     const workflow = readFileSync(path.join(root, ".github/workflows/release.yml"), "utf8");
     expect(workflow).toContain('sed "s#^x-subboost-image:.*#');
     expect(workflow).toContain("dist/release-assets/docker-compose.yml");
+    expect(workflow).toContain('pinned_image="${IMAGE_MIRROR:+${IMAGE_MIRROR}/}${IMAGE_NAME}:');
   });
 
   it("ships the docker helper scripts in the image", () => {
@@ -170,5 +174,19 @@ describe("docker-compose.yml", () => {
     expect(dockerfile).toContain("COPY --chown=node:node --chmod=0755 local/docker local/docker");
     expect(dockerfile).toContain('ENTRYPOINT ["/app/local/docker/entrypoint.sh"]');
     expect(dockerfile).toContain("ENV HOSTNAME=0.0.0.0");
+  });
+
+  it("keeps the runtime image to the standalone output plus an isolated Prisma CLI", () => {
+    const dockerfile = readFileSync(path.join(root, "local/Dockerfile"), "utf8");
+    const runner = dockerfile.slice(dockerfile.indexOf("AS runner"));
+    expect(runner).not.toMatch(/\/package\/node_modules/);
+    expect(runner).toContain("COPY --from=prisma-cli /opt/prisma /opt/prisma");
+    expect(runner).toContain("COPY local/docker/prisma-cli.config.mjs /opt/prisma/prisma.config.mjs");
+    expect(runner).toContain("/opt/prisma/node_modules/.bin/prisma migrate deploy --config /opt/prisma/prisma.config.mjs");
+    expect(dockerfile).toContain("packages['node_modules/prisma'].version");
+
+    const cliConfig = readFileSync(path.join(root, "local/docker/prisma-cli.config.mjs"), "utf8");
+    expect(cliConfig).toContain('schema: "/app/local/prisma/schema.prisma"');
+    expect(cliConfig).toContain("url: process.env.DATABASE_URL");
   });
 });

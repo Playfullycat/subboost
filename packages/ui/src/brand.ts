@@ -14,6 +14,16 @@ export const SUBBOOST_ICON_PATH = "/icon.png";
 
 export const SUBBOOST_FAVICON_PATH = "/favicon.ico";
 
+/** iOS「添加到主屏幕」使用的图标（180x180，不透明背景）。 */
+export const SUBBOOST_APPLE_ICON_PATH = "/icons/apple-touch-icon.png";
+
+/** PWA 安装图标：浏览器要求 192 和 512 两种尺寸，maskable 图标留出安全区供系统裁剪。 */
+export const SUBBOOST_MANIFEST_ICONS = [
+  { src: "/icons/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
+  { src: "/icons/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
+  { src: "/icons/maskable-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
+] as const;
+
 export const SUBBOOST_KEYWORDS = [
   "Clash",
   "订阅转换",
@@ -31,14 +41,16 @@ export const SUBBOOST_KEYWORDS = [
 export const SUBBOOST_MANIFEST_CATEGORIES = ["utilities", "productivity"];
 
 export type SubBoostManifest = {
+  id: string;
   name: string;
   short_name: string;
   description: string;
   start_url: string;
+  scope: string;
   display: "standalone";
   background_color: string;
   theme_color: string;
-  orientation: "portrait-primary";
+  orientation: "any";
   icons: Array<{
     src: string;
     sizes: string;
@@ -51,28 +63,17 @@ export type SubBoostManifest = {
 
 export function createSubBoostManifest(): SubBoostManifest {
   return {
+    id: "/",
     name: SUBBOOST_PRODUCT_TITLE,
     short_name: SUBBOOST_SITE_NAME,
     description: SUBBOOST_PRODUCT_DESCRIPTION,
     start_url: "/",
+    scope: "/",
     display: "standalone",
     background_color: "#0f0d1a",
     theme_color: SUBBOOST_THEME_COLOR,
-    orientation: "portrait-primary",
-    icons: [
-      {
-        src: SUBBOOST_ICON_PATH,
-        sizes: "512x512",
-        type: "image/png",
-        purpose: "any",
-      },
-      {
-        src: SUBBOOST_ICON_PATH,
-        sizes: "512x512",
-        type: "image/png",
-        purpose: "maskable",
-      },
-    ],
+    orientation: "any",
+    icons: SUBBOOST_MANIFEST_ICONS.map((icon) => ({ ...icon })),
     categories: [...SUBBOOST_MANIFEST_CATEGORIES],
     lang: "zh-CN",
   };

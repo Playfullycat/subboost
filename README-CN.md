@@ -4,7 +4,7 @@
   <h1>SubBoost</h1>
   <p>
     <img src="https://img.shields.io/badge/platform-Linux%20%2B%20Docker-lightgrey.svg" alt="平台：Linux + Docker">
-    <img src="https://img.shields.io/badge/version-2.15.1-green.svg" alt="版本 2.15.1">
+    <img src="https://img.shields.io/badge/version-2.16.0-green.svg" alt="版本 2.16.0">
     <a href="https://github.com/Playfullycat/subboost/pkgs/container/subboost"><img src="https://img.shields.io/badge/image-GHCR-blue.svg" alt="GHCR 镜像"></a>
     <a href="./LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-orange.svg" alt="AGPL-3.0"></a>
   </p>
@@ -62,6 +62,7 @@
 - 一台 Linux 服务器（x86_64 或 arm64），建议 1 GB 以上内存。
 - [Docker](https://docs.docker.com/engine/install/) 与 Docker Compose v2（`docker compose version` 能正常输出即可）。
 - 一个空闲端口，默认 `3000`。
+- 镜像默认通过镜像站 `hub.1991029.xyz` 拉取，国内服务器无需配置 Docker 加速也能下载。服务器能直连 ghcr.io 和 Docker Hub 时，可以改用官方地址，见 [可选配置项](#可选配置项) 中的 `SUBBOOST_IMAGE` 和 `POSTGRES_IMAGE`。
 
 ### 1. 下载配置文件
 
@@ -160,7 +161,8 @@ app-1  | [subboost]   密码   Password: 3f9c2a7d41e85b06c9d2e1f4
 | `SUBBOOST_ADMIN_USERNAME` | `admin` | 首次启动时自动创建的管理员用户名。 |
 | `SUBBOOST_ADMIN_PASSWORD` | 自动生成 | 首次启动时自动创建的管理员密码，至少 10 位。只在还没有管理员时生效，之后修改不会影响已有账号。`$` 的写法见 [登录](#4-登录) 上方说明。 |
 | `SUBBOOST_ADMIN_RESET` | `false` | 设为 `true` 时，启动时把已有管理员重置为上面两项的账号密码，并让所有设备重新登录。登录成功后请改回 `false`。 |
-| `SUBBOOST_IMAGE` | 发布版本对应的镜像 | 指定镜像，例如锁定版本 `ghcr.io/playfullycat/subboost:v2.15.1`。 |
+| `SUBBOOST_IMAGE` | 发布版本对应的镜像 | 指定 SubBoost 镜像，例如锁定版本 `hub.1991029.xyz/ghcr.io/playfullycat/subboost:v2.16.0`；服务器能直连 ghcr.io 时可去掉 `hub.1991029.xyz/` 前缀。 |
+| `POSTGRES_IMAGE` | `hub.1991029.xyz/library/postgres:16-alpine` | 数据库镜像；能直连 Docker Hub 时可设为 `postgres:16-alpine`，两者是同一个镜像，切换不影响数据。 |
 
 示例：
 
@@ -324,18 +326,15 @@ docker compose logs app | grep setup-token
 
 ### 忘记密码
 
-忘记密码时最简单的办法是 [用 docker-compose 重置管理员](#用-docker-compose-重置管理员)。也可以在服务器上直接执行命令重置（新密码至少 10 位，首尾空格会被忽略）：
+用 [docker-compose 重置管理员](#用-docker-compose-重置管理员)：在 `.env` 中写好新密码并开启重置，启动一次后再关掉。
 
 ```bash
-read -rsp "新密码: " NEW_PASSWORD; echo
-HASH=$(docker compose exec -T -e NEW_PASSWORD="$NEW_PASSWORD" app \
-  node -e 'process.stdout.write(require("bcryptjs").hashSync(process.env.NEW_PASSWORD.trim(), 12))')
-docker compose exec -T db psql -U subboost -d subboost \
-  -c "UPDATE \"LocalAdmin\" SET \"passwordHash\" = '$HASH', \"sessionsValidAfter\" = now(), \"updatedAt\" = now();"
-unset NEW_PASSWORD HASH
+# .env
+SUBBOOST_ADMIN_PASSWORD='新密码，至少 10 位'
+SUBBOOST_ADMIN_RESET=true
 ```
 
-输出 `UPDATE 1` 即修改成功，无需重启，用新密码登录即可；所有设备上的旧登录都会失效。
+执行 `docker compose up -d`，日志中出现「已重置管理员账号密码」后用新密码登录，然后把 `SUBBOOST_ADMIN_RESET` 改回 `false`，再执行一次 `docker compose up -d`。所有设备上的旧登录都会失效。
 
 ### 修改用户名
 
@@ -363,6 +362,15 @@ docker compose exec -T db psql -U subboost -d subboost \
 - 订阅链接里的 token 相当于密码，泄露后可在「我的订阅」中**重置链接**，旧链接立即失效。
 - 开启自动更新后，`cron` 会按设置的间隔重新拉取机场订阅；客户端也需要开启订阅自动更新才能拿到最新节点。
 - 默认不允许把本机、局域网等内网地址作为订阅源；确有需要时在「账户设置 → 订阅源安全」中开启。
+
+### 添加到桌面
+
+SubBoost 可以像 App 一样添加到手机或电脑桌面，从桌面图标打开时是独立窗口、没有地址栏。
+
+- **安卓 / 电脑上的 Chrome、Edge**：打开 SubBoost 后右下角会弹出「添加 SubBoost 到桌面」，点「安装」即可；也可以在浏览器菜单中选择「安装应用」或「添加到主屏幕」。
+- **iPhone / iPad**：在 Safari 中打开，点底部的「分享」按钮，选择「添加到主屏幕」。页面也会弹出这个提示。微信等 App 内置的浏览器不支持，请先用浏览器打开。
+- 点「以后再说」或关闭提示后，30 天内不再弹出。
+- 安装弹窗需要通过 **HTTPS**（或 `localhost`）访问才会出现。用 `http://服务器IP:3000` 访问时不会弹出，但仍可以在浏览器菜单中手动添加到桌面（会以普通网页快捷方式的形式打开）。
 
 ## 国内网络优化说明
 
@@ -422,9 +430,9 @@ docker compose pull
 docker compose up -d
 ```
 
-如果使用的是发布附件中锁定版本的 `docker-compose.yml`，请重新下载新版本的文件，或在 `.env` 中设置 `SUBBOOST_IMAGE=ghcr.io/playfullycat/subboost:latest`。
+如果使用的是发布附件中锁定版本的 `docker-compose.yml`，请重新下载新版本的文件，或在 `.env` 中设置 `SUBBOOST_IMAGE=hub.1991029.xyz/ghcr.io/playfullycat/subboost:latest`。
 
-**回滚到指定版本**：在 `.env` 中设置 `SUBBOOST_IMAGE=ghcr.io/playfullycat/subboost:v2.13.0`（换成需要的版本），然后执行 `docker compose up -d`。数据库迁移只增不减，跨大版本回滚前建议先备份。
+**回滚到指定版本**：在 `.env` 中设置 `SUBBOOST_IMAGE=hub.1991029.xyz/ghcr.io/playfullycat/subboost:v2.13.0`（换成需要的版本），然后执行 `docker compose up -d`。数据库迁移只增不减，跨大版本回滚前建议先备份。
 
 **从旧版一键脚本迁移**：把旧安装目录 `.env` 中的 `POSTGRES_PASSWORD`、`ENCRYPTION_KEY`、`JWT_SECRET`、`CRON_SECRET`、`LOCAL_SETUP_TOKEN` 复制到新目录的 `.env`，首次启动时会沿用这些值。旧数据推荐用 [服务器整体备份](#服务器整体备份) 中的 `pg_dump` 导出后导入。
 

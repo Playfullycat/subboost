@@ -4,7 +4,7 @@
   <h1>SubBoost</h1>
   <p>
     <img src="https://img.shields.io/badge/platform-Linux%20%2B%20Docker-lightgrey.svg" alt="Platform: Linux + Docker">
-    <img src="https://img.shields.io/badge/version-2.15.1-green.svg" alt="Version 2.15.1">
+    <img src="https://img.shields.io/badge/version-2.16.0-green.svg" alt="Version 2.16.0">
     <a href="https://github.com/Playfullycat/subboost/pkgs/container/subboost"><img src="https://img.shields.io/badge/image-GHCR-blue.svg" alt="GHCR image"></a>
     <a href="./LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-orange.svg" alt="AGPL-3.0"></a>
   </p>
@@ -62,6 +62,7 @@ This repository is a fork of [SubBoost/subboost](https://github.com/SubBoost/sub
 - A Linux server (x86_64 or arm64), 1 GB+ memory recommended.
 - [Docker](https://docs.docker.com/engine/install/) with Docker Compose v2 (`docker compose version` should work).
 - A free port, `3000` by default.
+- Images are pulled through the `hub.1991029.xyz` registry mirror by default, so servers in mainland China can download them without a Docker mirror. If your server reaches ghcr.io and Docker Hub directly, switch to the official names with `SUBBOOST_IMAGE` and `POSTGRES_IMAGE` (see [Optional settings](#optional-settings)).
 
 ### 1. Download the Compose file
 
@@ -160,7 +161,8 @@ Put settings in a `.env` file next to `docker-compose.yml` and run `docker compo
 | `SUBBOOST_ADMIN_USERNAME` | `admin` | Username of the admin created on first start. |
 | `SUBBOOST_ADMIN_PASSWORD` | Generated | Password of the admin created on first start, at least 10 characters. Only applies while no admin exists; later changes do not affect the existing account. See the notes above [Sign in](#4-sign-in) for writing `$`. |
 | `SUBBOOST_ADMIN_RESET` | `false` | When `true`, resets the existing admin to the two settings above on start and signs out every device. Set it back to `false` after you sign in. |
-| `SUBBOOST_IMAGE` | The release's image | Override the image, for example to pin `ghcr.io/playfullycat/subboost:v2.15.1`. |
+| `SUBBOOST_IMAGE` | The release's image | Override the SubBoost image, for example to pin `hub.1991029.xyz/ghcr.io/playfullycat/subboost:v2.16.0`. Drop the `hub.1991029.xyz/` prefix if your server reaches ghcr.io directly. |
+| `POSTGRES_IMAGE` | `hub.1991029.xyz/library/postgres:16-alpine` | The database image. Set it to `postgres:16-alpine` if your server reaches Docker Hub; both are the same image, so switching keeps your data. |
 
 Example:
 
@@ -324,18 +326,15 @@ After signing in, go to **Settings → Change password** (`账户设置 → 修�
 
 ### Forgot the password
 
-The easiest way is [Reset the admin from docker-compose](#reset-the-admin-from-docker-compose). You can also reset the password on the server with commands (at least 10 characters; leading and trailing spaces are ignored):
+Use [Reset the admin from docker-compose](#reset-the-admin-from-docker-compose): put the new password in `.env`, turn on the reset, start once, then turn it off.
 
 ```bash
-read -rsp "New password: " NEW_PASSWORD; echo
-HASH=$(docker compose exec -T -e NEW_PASSWORD="$NEW_PASSWORD" app \
-  node -e 'process.stdout.write(require("bcryptjs").hashSync(process.env.NEW_PASSWORD.trim(), 12))')
-docker compose exec -T db psql -U subboost -d subboost \
-  -c "UPDATE \"LocalAdmin\" SET \"passwordHash\" = '$HASH', \"sessionsValidAfter\" = now(), \"updatedAt\" = now();"
-unset NEW_PASSWORD HASH
+# .env
+SUBBOOST_ADMIN_PASSWORD='new password, at least 10 characters'
+SUBBOOST_ADMIN_RESET=true
 ```
 
-`UPDATE 1` means it worked. No restart is needed; sign in with the new password. Existing sign-ins on every device stop working.
+Run `docker compose up -d`. Once the log shows "已重置管理员账号密码" (admin account reset), sign in with the new password, set `SUBBOOST_ADMIN_RESET` back to `false`, and run `docker compose up -d` again. Existing sign-ins on every device stop working.
 
 ### Change the username
 
@@ -363,6 +362,15 @@ Notes:
 - The token in the subscription link works like a password. If it leaks, use **Reset link** in My Subscriptions; the old link stops working immediately.
 - With automatic refresh enabled, `cron` re-fetches airport subscriptions at the chosen interval; enable subscription auto-update in your client too to receive new nodes.
 - Local and LAN addresses are not allowed as subscription sources by default; enable them under **Settings → Source security** (`账户设置 → 订阅源安全`) only if you trust them.
+
+### Add to Home Screen
+
+SubBoost can be added to a phone or desktop like an app. Opened from its icon, it runs in its own window without an address bar.
+
+- **Chrome or Edge on Android and desktop**: after opening SubBoost, a card titled "添加 SubBoost 到桌面" appears; tap **安装** (Install). You can also use **Install app** or **Add to Home screen** in the browser menu.
+- **iPhone / iPad**: open SubBoost in Safari, tap **Share**, then **Add to Home Screen**. The page shows this hint too. In-app browsers such as WeChat can't do this, so open the page in a browser first.
+- After **以后再说** (Later) or closing the card, it stays hidden for 30 days.
+- The install dialog only appears over **HTTPS** (or `localhost`). Over `http://server-ip:3000` it won't pop up, but you can still add a shortcut from the browser menu (it opens like a regular web page).
 
 ## Routing Inside Mainland China
 
@@ -422,9 +430,9 @@ docker compose pull
 docker compose up -d
 ```
 
-If you use a release's pinned `docker-compose.yml`, download the new release's file, or set `SUBBOOST_IMAGE=ghcr.io/playfullycat/subboost:latest` in `.env`.
+If you use a release's pinned `docker-compose.yml`, download the new release's file, or set `SUBBOOST_IMAGE=hub.1991029.xyz/ghcr.io/playfullycat/subboost:latest` in `.env`.
 
-**Roll back to a version**: set `SUBBOOST_IMAGE=ghcr.io/playfullycat/subboost:v2.13.0` (use the version you need) in `.env`, then run `docker compose up -d`. Database migrations only move forward, so back up before rolling back across major versions.
+**Roll back to a version**: set `SUBBOOST_IMAGE=hub.1991029.xyz/ghcr.io/playfullycat/subboost:v2.13.0` (use the version you need) in `.env`, then run `docker compose up -d`. Database migrations only move forward, so back up before rolling back across major versions.
 
 **Migrating from the old one-click installer**: copy `POSTGRES_PASSWORD`, `ENCRYPTION_KEY`, `JWT_SECRET`, `CRON_SECRET`, and `LOCAL_SETUP_TOKEN` from the old installation's `.env` into a `.env` in the new directory; first start reuses them. Move old data with the `pg_dump` steps in [Full server backup](#full-server-backup).
 

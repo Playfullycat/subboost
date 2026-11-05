@@ -117,8 +117,9 @@ describe("local app pages and adapters", () => {
       display: "standalone",
       lang: "zh-CN",
       icons: [
-        { src: "/icon.png", purpose: "any" },
-        { src: "/icon.png", purpose: "maskable" },
+        { src: "/icons/icon-192.png", sizes: "192x192", purpose: "any" },
+        { src: "/icons/icon-512.png", sizes: "512x512", purpose: "any" },
+        { src: "/icons/maskable-512.png", sizes: "512x512", purpose: "maskable" },
       ],
     });
   });
